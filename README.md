@@ -237,3 +237,7 @@ task set, not "hooks help." That is a real, recorded finding, not an open questi
 ## Licence
 
 MIT. Not affiliated with any model provider or agent vendor.
+
+## Credits
+
+Built on [pi-agent-core](https://github.com/badlogic/pi-mono) (MIT). Tandem adds the verification layer; the agent loop, terminal interface and provider layer are Pi's.
