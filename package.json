@@ -1,0 +1,40 @@
+{
+  "name": "tandem",
+  "version": "0.1.0",
+  "description": "A standalone CLI coding agent that verifies at development decision points instead of only at the end.",
+  "license": "MIT",
+  "type": "commonjs",
+  "bin": {
+    "tandem": "bin/tandem.cjs"
+  },
+  "main": "src/index.cjs",
+  "files": [
+    "bin",
+    "src",
+    "skills",
+    "commands",
+    "templates",
+    "bench",
+    "docs",
+    "VERIFIED.md",
+    "AGENTS.md"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "^0.85.1"
+  },
+  "scripts": {
+    "test": "node test/run.cjs",
+    "test:live": "node test/live.mjs",
+    "preflight": "node bench/preflight.cjs"
+  },
+  "keywords": [
+    "cli",
+    "coding-agent",
+    "verification",
+    "typescript",
+    "decision-points"
+  ]
+}

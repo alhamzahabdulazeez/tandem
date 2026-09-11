@@ -1,0 +1,15 @@
+{
+  "name": "tandem-bench-task",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "biome check --reporter=json .",
+    "typecheck": "tsc --noEmit --pretty false",
+    "test": "vitest run --reporter=json"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  }
+}

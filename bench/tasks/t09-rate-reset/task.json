@@ -1,0 +1,1 @@
+{"id":"t09","family":"codebase","seed":"fixture","prompt":"In this existing project, add a `reset(): void` method to RateWindow in src/core/rates.ts that clears all recorded hits, and a `usedRatio(): number` method returning hits divided by limit as a number between 0 and 1. Do not change the constructor signature or any existing method behaviour.","timeoutMs":300000}
