@@ -27,6 +27,8 @@
   },
   "scripts": {
     "test": "node test/run.cjs",
+    "test:contracts": "node test/contracts/run.cjs",
+    "test:units": "node test/all.cjs",
     "test:live": "node test/live.mjs",
     "preflight": "node bench/preflight.cjs"
   },

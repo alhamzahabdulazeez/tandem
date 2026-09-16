@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "report_type": "CONTAINMENT_PROBE_REPORT",
+  "schema_version": "1.0.0",
+  "generated_at": "2026-09-16T16:08:00.000Z",
+  "host_environment": {
+    "kernel_release": "6.1.145-android14-11-33419968-abS928BXXS6DZH2",
+    "kernel_version": "#1 SMP PREEMPT Tue Aug 11 06:21:10 UTC 2026",
+    "architecture": "aarch64",
+    "operating_system": "Android / Linux",
+    "runtime": "Node.js v26.4.0",
+    "runtime_exec_path": "/data/data/com.termux/files/usr/bin/node",
+    "process_identity": {
+      "uid": 11115,
+      "gid": 11115
+    }
+  },
+  "containment_primitives_probed": {
+    "unshare": {
+      "available": false,
+      "path": null,
+      "error": "command not found / binary absent from PATH"
+    },
+    "bwrap": {
+      "available": false,
+      "path": null,
+      "error": "Bubblewrap not installed / unprivileged user namespaces disabled in Android kernel"
+    },
+    "nsenter": {
+      "available": false,
+      "path": null,
+      "error": "command not found / binary absent from PATH"
+    },
+    "cgcreate": {
+      "available": false,
+      "path": null,
+      "error": "cgroup-tools not installed / unprivileged cgroup creation denied"
+    },
+    "chroot": {
+      "available": false,
+      "path": null,
+      "error": "chroot binary absent / requires CAP_SYS_CHROOT"
+    },
+    "prctl": {
+      "available": false,
+      "path": null,
+      "error": "prctl CLI absent"
+    },
+    "seccomp_bpf": {
+      "available": false,
+      "path": null,
+      "error": "seccomp CLI absent"
+    }
+  },
+  "kernel_paths_probed": {
+    "/sys/fs/cgroup": {
+      "exists": true,
+      "is_directory": true,
+      "mode": "040775",
+      "writable_by_unprivileged_user": false
+    },
+    "/sys/fs/cgroup/unified": {
+      "exists": false,
+      "error": "EACCES: permission denied"
+    },
+    "/proc/self/cgroup": {
+      "exists": true,
+      "content": "5:freezer:/\n4:cpuset:/moderate\n3:cpuacct:/\n2:cpu:/background\n1:blkio:/low\n0::/apps/uid_11115/pid_19769"
+    },
+    "/proc/self/ns": {
+      "exists": true,
+      "entries": [
+        "cgroup",
+        "mnt",
+        "net",
+        "time",
+        "time_for_children",
+        "uts"
+      ],
+      "unprivileged_clone_newuser_supported": false
+    }
+  },
+  "assessment": {
+    "containment_state": "CONTAINMENT_MISSING",
+    "supervised_candidate_execution_allowed": false,
+    "gate0_status": "NOT_PASSED",
+    "blocker_ib01_status": "OPEN",
+    "admitted_disposition": "CHECKER_ONLY",
+    "rationales": [
+      "Operating system-level namespace isolation (bwrap, unshare) is unavailable.",
+      "Unprivileged cgroup v2 resource limits cannot be created or enforced (EACCES on /sys/fs/cgroup/unified).",
+      "Process subtree sandboxing cannot guarantee containment of detached grandchildren or background forks.",
+      "Untrusted candidate code cannot be safely executed under supervision on this host."
+    ]
+  }
+}

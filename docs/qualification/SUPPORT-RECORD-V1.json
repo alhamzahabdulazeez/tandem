@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "document_type": "SUPPORT_RECORD_V1",
+  "schema_version": "1.0.0",
+  "generated_at": "2026-09-16T16:08:00.000Z",
+  "qualification_record": {
+    "schemaVersion": "1.0.0",
+    "kind": "qualification",
+    "qualificationId": "qual-host-termux-android-arm64-v1",
+    "profileId": "termux-android-arm64-unqualified",
+    "profileVersion": "1.0.0",
+    "profileDigest": "sha256-4dcdafbfe8ff12d937077ca8210344b1c2081d582cae3895e65664db80687799",
+    "status": "UNQUALIFIED",
+    "evidenceBindings": [
+      {
+        "surface": "DESCENDANTS",
+        "evidenceIds": [
+          "ev-containment-descendants-01"
+        ]
+      },
+      {
+        "surface": "RESOURCES",
+        "evidenceIds": [
+          "ev-containment-resources-01"
+        ]
+      },
+      {
+        "surface": "FILESYSTEM",
+        "evidenceIds": [
+          "ev-containment-filesystem-01"
+        ]
+      },
+      {
+        "surface": "HOST_IPC",
+        "evidenceIds": [
+          "ev-containment-ipc-01"
+        ]
+      },
+      {
+        "surface": "SUPERVISOR_CONTROL",
+        "evidenceIds": [
+          "ev-containment-supervisor-01"
+        ]
+      },
+      {
+        "surface": "BASELINE_VERIFIER",
+        "evidenceIds": [
+          "ev-storage-durability-01"
+        ]
+      },
+      {
+        "surface": "DIAGNOSTICS",
+        "evidenceIds": [
+          "ev-diagnostics-isolation-01"
+        ]
+      }
+    ],
+    "admittedByContract": "TANDEM_MASTER_EXECUTION_PRD_V1.md §5 / §30",
+    "invalidationConditions": "Host kernel update, Node.js version change, or acquisition of container/sandbox primitives",
+    "qualificationSummary": "Termux Android 14 arm64 environment evaluated for Gate 0. Lacks OS containerization (bwrap, unshare, cgroups). Filesystem durability verified for observer/checker operations. Execution disposition constrained strictly to CHECKER_ONLY.",
+    "claimedAt": 1789574880000
+  },
+  "evidence_records": [
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-containment-descendants-01",
+      "surface": "DESCENDANTS",
+      "method": "CONTAINMENT_TEST",
+      "evidenceProfileBinding": "termux-android-arm64-unqualified",
+      "result": "FAIL",
+      "timestamp": 1789574880000,
+      "observerIdentity": "gate0-containment-probe",
+      "limitations": [
+        "bwrap missing",
+        "unshare missing",
+        "pid namespace isolation unavailable"
+      ],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-containment-resources-01",
+      "surface": "RESOURCES",
+      "method": "RESOURCE_TEST",
+      "evidenceProfileBinding": "termux-android-arm64-unqualified",
+      "result": "FAIL",
+      "timestamp": 1789574880000,
+      "observerIdentity": "gate0-containment-probe",
+      "limitations": [
+        "/sys/fs/cgroup/unified EACCES",
+        "cgcreate unavailable"
+      ],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-containment-filesystem-01",
+      "surface": "FILESYSTEM",
+      "method": "ACCESS_TEST",
+      "evidenceProfileBinding": "termux-android-arm64-unqualified",
+      "result": "FAIL",
+      "timestamp": 1789574880000,
+      "observerIdentity": "gate0-containment-probe",
+      "limitations": [
+        "no mount namespace isolation",
+        "bwrap missing"
+      ],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-containment-ipc-01",
+      "surface": "HOST_IPC",
+      "method": "ISOLATION_TEST",
+      "evidenceProfileBinding": "termux-android-arm64-unqualified",
+      "result": "FAIL",
+      "timestamp": 1789574880000,
+      "observerIdentity": "gate0-containment-probe",
+      "limitations": [
+        "no IPC namespace isolation"
+      ],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-containment-supervisor-01",
+      "surface": "SUPERVISOR_CONTROL",
+      "method": "ISOLATION_TEST",
+      "evidenceProfileBinding": "termux-android-arm64-unqualified",
+      "result": "FAIL",
+      "timestamp": 1789574880000,
+      "observerIdentity": "gate0-containment-probe",
+      "limitations": [
+        "supervisor and candidate share unisolated process namespace"
+      ],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-storage-durability-01",
+      "surface": "BASELINE_VERIFIER",
+      "method": "ACCESS_TEST",
+      "evidenceProfileBinding": "termux-android-arm64-unqualified",
+      "result": "PASS",
+      "timestamp": 1789574880000,
+      "observerIdentity": "gate0-storage-probe",
+      "limitations": [
+        "f2fs fsync_mode=nobarrier"
+      ],
+      "rawEvidencePath": "docs/qualification/STORAGE-DURABILITY-REPORT.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-diagnostics-isolation-01",
+      "surface": "DIAGNOSTICS",
+      "method": "CONFIGURATION_AUDIT",
+      "evidenceProfileBinding": "termux-android-arm64-unqualified",
+      "result": "PASS",
+      "timestamp": 1789574880000,
+      "observerIdentity": "gate0-config-audit",
+      "limitations": [
+        "local telemetry disabled; zero external diagnostic egress"
+      ],
+      "rawEvidencePath": "tandem.json"
+    }
+  ],
+  "reducer_evaluation": {
+    "status": "UNQUALIFIED",
+    "failureModes": [
+      "contradiction"
+    ],
+    "problems": [
+      "qual_evidence ev-containment-descendants-01: surface DESCENDANTS FAILED its probe — the boundary is not proven",
+      "qual_evidence ev-containment-resources-01: surface RESOURCES FAILED its probe — the boundary is not proven",
+      "qual_evidence ev-containment-filesystem-01: surface FILESYSTEM FAILED its probe — the boundary is not proven",
+      "qual_evidence ev-containment-ipc-01: surface HOST_IPC FAILED its probe — the boundary is not proven",
+      "qual_evidence ev-containment-supervisor-01: surface SUPERVISOR_CONTROL FAILED its probe — the boundary is not proven"
+    ],
+    "staleEvidence": [],
+    "coveredSurfaces": [
+      "BASELINE_VERIFIER",
+      "DIAGNOSTICS"
+    ],
+    "claimedStatus": "UNQUALIFIED"
+  },
+  "system_state": {
+    "gate0": "NOT_PASSED",
+    "ib01": "OPEN",
+    "ib02": "OPEN",
+    "ib03": "OPEN",
+    "ib04": "OPEN",
+    "authorityGranted": false,
+    "incumbent_modified": false,
+    "release_disposition": "CHECKER_ONLY"
+  }
+}

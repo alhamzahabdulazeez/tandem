@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "report_type": "STORAGE_DURABILITY_REPORT",
+  "schema_version": "1.0.0",
+  "generated_at": "2026-09-16T16:08:00.000Z",
+  "host_storage_environment": {
+    "mount_point": "/data/user/0",
+    "device_block": "/dev/block/dm-65",
+    "filesystem_type": "f2fs",
+    "mount_options": "rw,lazytime,seclabel,nosuid,nodev,noatime,background_gc=on,nogc_merge,discard,discard_unit=block,user_xattr,inline_xattr,acl,inline_data,inline_dentry,noflush_merge,barrier,extent_cache,mode=adaptive,active_logs=6,reserve_root=32768,reserve_node=0,resuid=0,resgid=5678,usrquota,grpquota,inlinecrypt,alloc_mode=default,checkpoint_merge,fsync_mode=nobarrier,compress_algorithm=lz4,compress_log_size=5,compress_mode=user,memory=normal,lookup_mode=perf",
+    "capacity_metrics": {
+      "total_bytes_human": "460G",
+      "used_bytes_human": "92G",
+      "available_bytes_human": "368G",
+      "use_percentage": 21
+    }
+  },
+  "durability_primitives_probed": {
+    "fsync_file": {
+      "supported": true,
+      "mechanism": "node:fs.fsyncSync(fd)",
+      "observed": "SUCCESS"
+    },
+    "atomic_rename": {
+      "supported": true,
+      "mechanism": "node:fs.renameSync(source, destination)",
+      "observed": "SUCCESS (same-filesystem atomic replacement)"
+    },
+    "fsync_directory": {
+      "supported": true,
+      "mechanism": "node:fs.fsyncSync(dirFd)",
+      "observed": "SUCCESS"
+    },
+    "read_back_integrity": {
+      "supported": true,
+      "observed": "SUCCESS (exact payload byte-match)"
+    }
+  },
+  "storage_limitations": {
+    "fsync_mode_nobarrier": {
+      "active": true,
+      "implication": "Underlying Android f2fs mount specifies fsync_mode=nobarrier; dirty buffer flush is committed to storage controller, but physical power-cut flush guarantees depend on device UFS/eMMC controller cache semantics."
+    },
+    "single_filesystem_namespace": {
+      "active": true,
+      "implication": "All staging, store, and worktree files reside on the same /data/user/0 filesystem. No sub-mount quota isolation or separate volume boundaries are active."
+    }
+  },
+  "assessment": {
+    "storage_integrity_suitable_for_checker": true,
+    "storage_integrity_suitable_for_unattended_supervised_mutation": false,
+    "gate0_status": "NOT_PASSED",
+    "blocker_ib01_status": "OPEN",
+    "admitted_disposition": "CHECKER_ONLY"
+  }
+}
