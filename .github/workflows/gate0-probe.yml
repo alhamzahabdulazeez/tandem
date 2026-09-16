@@ -1,0 +1,131 @@
+name: Gate 0 Linux Qualification Probe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  gate0:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install qualification tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap util-linux
+
+      - name: Host profile
+        run: |
+          echo "=== SYSTEM ==="
+          uname -a
+          echo
+          echo "=== ARCH ==="
+          uname -m
+          echo
+          echo "=== NODE ==="
+          node --version || true
+          which node || true
+          echo
+          echo "=== BWRAP ==="
+          bwrap --version
+          which bwrap
+          echo
+          echo "=== UNSHARE ==="
+          unshare --version
+          which unshare
+          echo
+          echo "=== CGROUP ==="
+          cat /proc/self/cgroup
+          mount | grep cgroup || true
+          ls -la /sys/fs/cgroup
+
+      - name: Namespace probe
+        run: |
+          set -eux
+          unshare -Ur true
+          unshare -Urpf --mount-proc sh -c 'echo PID_NAMESPACE_PASS; ps -ef'
+          unshare -Urnm sh -c 'echo MOUNT_NETWORK_NAMESPACE_PASS'
+
+      - name: Bubblewrap probe
+        run: |
+          set -eux
+          bwrap \
+            --unshare-all \
+            --die-with-parent \
+            --ro-bind /usr /usr \
+            --ro-bind /bin /bin \
+            --ro-bind /lib /lib \
+            --ro-bind /lib64 /lib64 \
+            --proc /proc \
+            --dev /dev \
+            --tmpfs /tmp \
+            /bin/sh -c '
+              echo BWRAP_PASS
+              echo "--- PID ---"
+              ps -ef
+              echo "--- NETWORK ---"
+              cat /proc/net/route
+              echo "--- ROOT ---"
+              ls -la /
+            '
+
+      - name: Cgroup probe
+        run: |
+          set -eux
+          echo "=== CONTROLLERS ==="
+          cat /sys/fs/cgroup/cgroup.controllers
+          echo
+          echo "=== SUBTREE ==="
+          cat /sys/fs/cgroup/cgroup.subtree_control || true
+          echo
+          echo "=== MEMORY ==="
+          cat /sys/fs/cgroup/memory.max || true
+          echo
+          echo "=== CPU ==="
+          cat /sys/fs/cgroup/cpu.max || true
+          echo
+          echo "=== PIDS ==="
+          cat /sys/fs/cgroup/pids.max || true
+
+      - name: Storage durability probe
+        run: |
+          set -eux
+          mkdir -p /tmp/tandem-durability
+          cd /tmp/tandem-durability
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const file = "test.tmp";
+          const final = "test.final";
+          const fd = fs.openSync(file, "w");
+          fs.writeSync(fd, Buffer.from("tandem-gate0-test\n"));
+          fs.fsyncSync(fd);
+          fs.closeSync(fd);
+          fs.renameSync(file, final);
+          const dir = fs.openSync(".", "r");
+          fs.fsyncSync(dir);
+          fs.closeSync(dir);
+          if (fs.readFileSync(final, "utf8") !== "tandem-gate0-test\n") {
+            process.exit(1);
+          }
+          fs.unlinkSync(final);
+          console.log("STORAGE_DURABILITY_PASS");
+          NODE
+
+      - name: Save evidence
+        if: always()
+        run: |
+          mkdir -p gate0-evidence
+          uname -a > gate0-evidence/uname.txt
+          id > gate0-evidence/id.txt
+          cat /proc/self/cgroup > gate0-evidence/cgroup.txt
+          mount | grep cgroup > gate0-evidence/cgroup-mount.txt || true
+          cat /sys/fs/cgroup/cgroup.controllers > gate0-evidence/cgroup-controllers.txt || true
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate0-linux-evidence
+          path: gate0-evidence/
