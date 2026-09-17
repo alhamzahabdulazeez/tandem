@@ -527,15 +527,27 @@ t('a TANDEM_API_KEYS-only setup resolves a key (previously: "TANDEM_API_KEY is n
 });
 
 group('doctor — host status must reflect reality');
-t('doctor reports the installed host by dynamic import, not a false NOT INSTALLED from require() on an ESM-only package', () => {
+t('doctor reports host status accurately via dynamic import matching real host installation', () => {
   // src/adapter/pi.cjs's require()-based loadHost can never resolve an ESM-only host and
   // always reports NOT INSTALLED. `doctor` must go through the dynamic-import loader in
   // session.mjs instead — the same one `tandem run` uses — or it lies to the user.
+  let hostInstalled = false;
+  try {
+    execFileSync(process.execPath, ['--input-type=module', '-e', 'import("@earendil-works/pi-agent-core")'], { stdio: 'ignore' });
+    hostInstalled = true;
+  } catch {
+    hostInstalled = false;
+  }
+
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'doctor-'));
   const out = execFileSync(process.execPath, [path.join(R0, 'bin', 'tandem.cjs'), 'doctor'],
     { cwd: tmp, encoding: 'utf8' });
   assert.ok(out.includes('@earendil-works/pi-agent-core'), out);
-  assert.ok(!out.includes('NOT INSTALLED'), out);
+  if (hostInstalled) {
+    assert.ok(!out.includes('NOT INSTALLED'), out);
+  } else {
+    assert.ok(out.includes('NOT INSTALLED'), out);
+  }
 });
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
