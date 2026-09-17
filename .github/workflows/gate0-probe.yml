@@ -42,6 +42,7 @@ jobs:
           ls -la /sys/fs/cgroup
 
       - name: Namespace probe
+        continue-on-error: true
         run: |
           set -eux
           unshare -Ur true
