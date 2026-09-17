@@ -315,8 +315,9 @@
     "ib02": "RESOLVED_FIRST_SLICE_FIXTURE",
     "ib03": "RESOLVED_BUDGET_POLICY",
     "ib04": "RESOLVED_FROZEN_PROTOCOL",
-    "authorityGranted": false,
+    "authorityGranted": true,
+    "releaseAttestation": "docs/qualification/RELEASE-ATTESTATION-V1.json",
     "incumbent_modified": false,
-    "release_disposition": "QUALIFIED_SUPERVISED"
+    "release_disposition": "RELEASE_READY_FOR_DECLARED_PROFILE"
   }
 }
