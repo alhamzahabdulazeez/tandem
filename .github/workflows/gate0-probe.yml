@@ -1,6 +1,9 @@
 name: Gate 0 Linux Qualification Probe
 
 on:
+  push:
+    branches:
+      - gate0-linux-probe
   workflow_dispatch:
 
 jobs:
