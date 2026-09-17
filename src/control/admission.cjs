@@ -26,6 +26,7 @@
  */
 
 const { isContentId } = require('../contracts/crypto.js');
+const { epochNumberFromLabel } = require('../contracts/identity.js');
 const REC = require('../contracts/records.js');
 const BL = require('./budget-ledger.cjs');
 
@@ -88,6 +89,10 @@ function admitAndRelease({ store, proposal, budget, boundary, clock }) {
   if (!task) return refuse(`unknown incarnation "${proposal.incarnationId}"`);
   if (task.incarnationStatus !== 'ACTIVE') return refuse(`incarnation ${task.incarnationStatus}`);
   if (String(task.ownerEpoch) !== String(proposal.ownerEpoch)) return refuse(`owner epoch mismatch (${task.ownerEpoch} != ${proposal.ownerEpoch})`);
+  const n = epochNumberFromLabel(proposal.ownerEpoch);
+  if (n !== null && owner.currentEpoch !== undefined && n < owner.currentEpoch) {
+    return refuse(`stale epoch (${proposal.ownerEpoch} < current ${owner.currentEpoch})`);
+  }
   if (!ADMISSIBLE_PHASES.has(task.phase)) return refuse(`phase ${task.phase} is not admissible`);
 
   // policy/grants.

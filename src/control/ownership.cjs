@@ -91,7 +91,8 @@ function initOrBindOwner(store, { root, ownerIdentity, lockIdentity, role, admis
     recoveryState: recoveryState || 'NORMAL',
     admissionState: admissionState || prev.admissionState || 'OPEN',
   });
-  return store.update(lockIdentity, next);
+  store.update(lockIdentity, next);
+  return store.get(lockIdentity);
 }
 
 function allocateEpoch(store, ownerIdentity, role) {
