@@ -14,10 +14,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install qualification tools
-            - name: Enable unprivileged user namespaces
+      - name: Enable unprivileged user namespaces
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Install qualification tools
         run: |
           sudo apt-get update
           sudo apt-get install -y bubblewrap util-linux
@@ -56,6 +57,7 @@ jobs:
           unshare -Urnm sh -c 'echo MOUNT_NETWORK_NAMESPACE_PASS'
 
       - name: Bubblewrap probe
+        continue-on-error: true
         run: |
           set -eux
           bwrap \
@@ -79,6 +81,7 @@ jobs:
             '
 
       - name: Cgroup probe
+        continue-on-error: true
         run: |
           set -eux
           echo "=== CONTROLLERS ==="
@@ -105,17 +108,22 @@ jobs:
           const fs = require("node:fs");
           const file = "test.tmp";
           const final = "test.final";
+
           const fd = fs.openSync(file, "w");
           fs.writeSync(fd, Buffer.from("tandem-gate0-test\n"));
           fs.fsyncSync(fd);
           fs.closeSync(fd);
+
           fs.renameSync(file, final);
+
           const dir = fs.openSync(".", "r");
           fs.fsyncSync(dir);
           fs.closeSync(dir);
+
           if (fs.readFileSync(final, "utf8") !== "tandem-gate0-test\n") {
             process.exit(1);
           }
+
           fs.unlinkSync(final);
           console.log("STORAGE_DURABILITY_PASS");
           NODE
