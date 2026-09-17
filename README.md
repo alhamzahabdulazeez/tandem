@@ -25,12 +25,14 @@ automatically.
 
 ```bash
 npm i -g @earendil-works/pi-agent-core
-npm i -g tandem
+npm i -g tandem-hooks
 
 cd your-project
 tandem init
 tandem run "add expiry support to the Store class"
 ```
+
+*(Note: `tandem-hooks` is the package name; both `tandem` and `tandem-hooks` binary commands are installed.)*
 
 `tandem doctor` reports which gates are active, which are disabled and why, the five
 decision points, and which file in your project has the most importers. It never prints

@@ -1,13 +1,22 @@
 {
-  "name": "tandem",
+  "name": "tandem-hooks",
   "version": "0.1.0",
   "description": "A standalone CLI coding agent that verifies at development decision points instead of only at the end.",
   "license": "MIT",
   "type": "commonjs",
   "bin": {
-    "tandem": "bin/tandem.cjs"
+    "tandem": "bin/tandem.cjs",
+    "tandem-hooks": "bin/tandem.cjs"
   },
   "main": "src/index.cjs",
+  "exports": {
+    ".": "./src/index.cjs",
+    "./package.json": "./package.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alhamzahabdulazeez/tandem.git"
+  },
   "files": [
     "bin",
     "src",
