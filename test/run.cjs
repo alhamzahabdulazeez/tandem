@@ -550,5 +550,55 @@ t('doctor reports host status accurately via dynamic import matching real host i
   }
 });
 
+group('cli — capture and diagnostic check');
+t('tandem capture produces non-executing manifest and exits 0 on clean tree', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-capture-test-'));
+  fs.mkdirSync(path.join(tmp, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(tmp, 'src', 'index.js'), 'export const x = 1;\n');
+  const out = execFileSync(process.execPath, [path.join(R0, 'bin', 'tandem.cjs'), 'capture'], { cwd: tmp, encoding: 'utf8' });
+  assert.ok(out.includes('files read       1'), out);
+  assert.ok(out.includes('complete capture yes'), out);
+  assert.ok(out.includes('manifest         sha256:'), out);
+  assert.ok(out.includes('executed               no'), out);
+  assert.ok(out.includes('supervised execution: UNAVAILABLE'), out);
+});
+
+t('tandem check produces 3 diagnostic sections and degrades cleanly in non-git directory', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-check-test-'));
+  const out = execFileSync(process.execPath, [path.join(R0, 'bin', 'tandem.cjs'), 'check'], { cwd: tmp, encoding: 'utf8' });
+  assert.ok(out.includes('type errors'), out);
+  assert.ok(out.includes('unavailable (no tsconfig.json)'), out);
+  assert.ok(out.includes('affected importers'), out);
+  assert.ok(out.includes('unavailable (not a git repository)'), out);
+  assert.ok(out.includes('regressed tests'), out);
+  assert.ok(out.includes('unavailable (no test runner detected)'), out);
+});
+
+t('tandem check identifies affected importers from changed source files and depgraph', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-check-git-'));
+  fs.mkdirSync(path.join(tmp, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(tmp, 'src', 'a.js'), 'export const a = 1;\n');
+  fs.writeFileSync(path.join(tmp, 'src', 'b.js'), "import { a } from './a.js';\nexport const b = a + 1;\n");
+  execFileSync('git', ['init'], { cwd: tmp, stdio: 'ignore' });
+  execFileSync('git', ['config', 'user.name', 'Test'], { cwd: tmp, stdio: 'ignore' });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: tmp, stdio: 'ignore' });
+  execFileSync('git', ['add', '.'], { cwd: tmp, stdio: 'ignore' });
+  execFileSync('git', ['commit', '-m', 'initial'], { cwd: tmp, stdio: 'ignore' });
+
+  // Modify src/a.js
+  fs.writeFileSync(path.join(tmp, 'src', 'a.js'), 'export const a = 2;\n');
+  let code = 0;
+  let out = '';
+  try {
+    out = execFileSync(process.execPath, [path.join(R0, 'bin', 'tandem.cjs'), 'check'], { cwd: tmp, encoding: 'utf8' });
+  } catch (e) {
+    code = e.status;
+    out = String(e.stdout || '');
+  }
+  assert.strictEqual(code, 1); // affected importers reported => exit 1
+  assert.ok(out.includes('src/a.js (1 dependent):'), out);
+  assert.ok(out.includes('src/b.js'), out);
+});
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

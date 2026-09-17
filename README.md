@@ -34,6 +34,13 @@ tandem run "add expiry support to the Store class"
 
 *(Note: `tandem-hooks` is the package name; both `tandem` and `tandem-hooks` binary commands are installed.)*
 
+`tandem check [--since <git-ref>] [--baseline]` runs active project diagnosis across three sections:
+1. **Type errors**: project-wide compiler check, reporting deduplicated diagnostics.
+2. **Affected importers**: git-aware blast radius identifying files importing your changed source files.
+3. **Regressed tests**: regression detection against `.tandem/check-baseline.json` (written via `--baseline`).
+
+`tandem capture` performs an honest, non-executing source tree inspection and reports a SHA-256 manifest.
+
 `tandem doctor` reports which gates are active, which are disabled and why, the five
 decision points, and which file in your project has the most importers. It never prints
 tokens, keys, or environment values.
@@ -207,7 +214,7 @@ is a one-file fix. A test enforces that boundary.
 
 ## Status
 
-The verification core is complete and covered by 99 passing tests (`npm test`). `tandem run`
+The verification core is complete and covered by 1,545 passing tests combined (114 in `npm test`, 672 in `npm run test:contracts`, 759 in `npm run test:units`). `tandem run`
 has been driven against a real model (`openai/gpt-oss-120b` on Groq, from Termux) — the host
 loads, the model streams a real completion, and it calls Tandem's own tools. That closes the
 gap `FINISH.md` originally described ("a live session has never been run").

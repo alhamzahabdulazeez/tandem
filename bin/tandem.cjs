@@ -8,6 +8,8 @@ const { spawnSync } = require('node:child_process');
 const ROOT = path.resolve(__dirname, '..');
 const CFG = require('../src/core/config.cjs');
 const detect = require('../src/gates/detect.cjs');
+const GATES = require('../src/gates/run.cjs');
+const P = require('../src/gates/parse.cjs');
 const DG = require('../src/context/depgraph.cjs');
 const DP = require('../src/core/decision-points.cjs');
 const PROJ = require('../src/context/project.cjs');
@@ -119,30 +121,25 @@ function bench(cwd, rest) {
 }
 
 /**
- * `tandem check` — honest, non-executing inspection (PRD §22, F-05).
+ * `tandem capture` — honest, non-executing inspection (PRD §22, F-05).
  *
- * This is the checker/observer mode that is the valid supported state for the
- * repository until Gate-0 blockers close (docs/GATE0-AUDIT.md §J). It executes
- * nothing; it only reports what it could and could not inspect.
- *
- * It deliberately makes no supervision or prevention claim. Supervised
- * execution is reported as unavailable because, per the Gate-0 audit, no
- * qualified support profile exists and IB-01 is open — the code below carries
- * that current-state fact explicitly rather than pretending otherwise.
+ * This preserves the exact non-executing source tree inspection and manifest
+ * reporting behavior previously attached to `check`. It executes nothing; it only
+ * reports what it could and could not inspect.
  */
-function check(cwd, rest) {
-  // `tandem check [path]` — explicit selection. Defaults to the working
+function capture(cwd, rest) {
+  // `tandem capture [path]` — explicit selection. Defaults to the working
   // directory. The inspected path is not changed in any way.
   const target = (rest && rest[0]) ? path.resolve(cwd, rest[0]) : cwd;
   let report;
   try {
     report = CHECK.inspect(target, { maxFileBytes: 1 * 1024 * 1024, maxFiles: 10000 });
   } catch (e) {
-    console.error(`tandem check: could not inspect ${target}: ${e.message}`);
+    console.error(`tandem capture: could not inspect ${target}: ${e.message}`);
     process.exit(2);
   }
 
-  console.log(`tandem ${pkg.version} — check\n`);
+  console.log(`tandem ${pkg.version} — capture\n`);
   console.log(`  inspected root   ${report.inspectedRoot}`);
   console.log(`  repo shape       ${report.repoShape}`);
   console.log(`  files read       ${report.scope.filesRead} (${report.scope.totalBytesRead} bytes)`);
@@ -161,6 +158,223 @@ function check(cwd, rest) {
   console.log('    (Gate-0 status: IB-01 open; see docs/GATE0-AUDIT.md §J)');
 
   process.exit(report.unsupported.length ? 1 : 0);
+}
+
+/**
+ * `tandem check [--since <git-ref>] [--baseline]` — active project diagnosis.
+ *
+ * Produces a three-section diagnostic report:
+ *   1. Type errors (project-wide via tsc, deduplicated & capped)
+ *   2. Affected importers (changed files via git + reverse dependency graph)
+ *   3. Regressed tests (test runner vs .tandem/check-baseline.json)
+ *
+ * Exit codes:
+ *   0 — all three sections are clean
+ *   1 — anything is reported (errors, affected importers, regressions/failures)
+ *   2 — internal error
+ */
+function check(cwd, rest) {
+  try {
+    let sinceRef = 'HEAD';
+    let writeBaseline = false;
+    if (Array.isArray(rest)) {
+      for (let i = 0; i < rest.length; i++) {
+        if (rest[i] === '--since' && i + 1 < rest.length) {
+          sinceRef = rest[i + 1];
+          i++;
+        } else if (rest[i].startsWith('--since=')) {
+          sinceRef = rest[i].slice('--since='.length);
+        } else if (rest[i] === '--baseline') {
+          writeBaseline = true;
+        }
+      }
+    }
+
+    const cfg = CFG.load(cwd);
+    const gates = detect.detectGates(cwd, cfg);
+    let hasIssues = false;
+
+    console.log(`tandem ${pkg.version} — check\n`);
+
+    // --- Section 1: Type errors ---
+    console.log('type errors');
+    const tcGate = gates.typecheck;
+    if (!tcGate || !tcGate.available) {
+      const reason = (tcGate && tcGate.reason) || 'no type checker detected';
+      console.log(`  unavailable (${reason})`);
+    } else {
+      const tc = GATES.typecheck(tcGate, cwd, cfg, null);
+      if (tc.skipped) {
+        console.log(`  unavailable (${tc.reason})`);
+      } else if (tc.passed) {
+        console.log('  none');
+      } else {
+        hasIssues = true;
+        if (tc.errors && tc.errors.length > 0) {
+          console.log(`  ${tc.errorCount} error(s)${tc.errorCount > tc.errors.length ? ` (showing top ${tc.errors.length})` : ''}:`);
+          for (const e of tc.errors) {
+            console.log(`    ${e.file}:${e.line}:${e.column} ${e.code} ${e.message}`);
+          }
+        } else if (tc.raw) {
+          console.log('  type check failed (raw output):');
+          for (const line of tc.raw.split('\n')) {
+            console.log(`    ${line}`);
+          }
+        } else {
+          console.log(`  type check failed (${tc.errorCount || 1} error(s))`);
+        }
+      }
+    }
+
+    // --- Section 2: Affected importers ---
+    console.log('\naffected importers');
+    const gitCheck = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd, encoding: 'utf8' });
+    if (gitCheck.status !== 0) {
+      console.log('  unavailable (not a git repository)');
+    } else {
+      let graph = null;
+      try {
+        graph = DG.build(cwd);
+      } catch (e) {
+        graph = null;
+      }
+
+      if (!graph) {
+        console.log('  unavailable (no source tree detected for dependency graph)');
+      } else {
+        const diffRun = spawnSync('git', ['diff', '--name-only', sinceRef], { cwd, encoding: 'utf8' });
+        const statusRun = spawnSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' });
+
+        let changedFiles = [];
+        if (diffRun.status === 0 && diffRun.stdout) {
+          changedFiles.push(...diffRun.stdout.split('\n').map((s) => s.trim()).filter(Boolean));
+        }
+        if (statusRun.status === 0 && statusRun.stdout) {
+          for (const line of statusRun.stdout.split('\n')) {
+            if (line.startsWith('?? ')) {
+              changedFiles.push(line.slice(3).trim());
+            }
+          }
+        }
+        changedFiles = Array.from(new Set(changedFiles.map((f) => f.split('\\').join('/'))));
+
+        const graphFileSet = new Set(graph.files);
+        const changedSourceFiles = changedFiles.filter((f) => graphFileSet.has(f));
+
+        if (changedSourceFiles.length === 0) {
+          console.log('  none');
+        } else {
+          let anyDependents = false;
+          for (const file of changedSourceFiles) {
+            const rawDeps = DG.dependentsOf(graph, file);
+            const deps = Array.from(new Set(rawDeps));
+            const count = deps.length;
+            if (count > 0) {
+              anyDependents = true;
+              hasIssues = true;
+              console.log(`  ${file} (${count} dependent${count === 1 ? '' : 's'}):`);
+              for (const d of deps) {
+                console.log(`    ${d}`);
+              }
+            } else {
+              console.log(`  ${file} (0 dependents)`);
+            }
+          }
+        }
+      }
+    }
+
+    // --- Section 3: Regressed tests ---
+    console.log('\nregressed tests');
+    const testGate = gates.test;
+    if (!testGate || !testGate.available) {
+      const reason = (testGate && testGate.reason) || 'no test runner detected';
+      console.log(`  unavailable (${reason})`);
+    } else {
+      const testResult = GATES.tests(testGate, cwd, cfg);
+      const baselineDir = path.join(cwd, '.tandem');
+      const baselinePath = path.join(baselineDir, 'check-baseline.json');
+
+      if (writeBaseline) {
+        fs.mkdirSync(baselineDir, { recursive: true });
+        const baselineData = {
+          timestamp: new Date().toISOString(),
+          passing: testResult.passing || [],
+        };
+        fs.writeFileSync(baselinePath, JSON.stringify(baselineData, null, 2));
+        console.log(`  baseline written: .tandem/check-baseline.json (${(testResult.passing || []).length} passing test(s))`);
+        if (!testResult.passed || testResult.errorCount > 0) {
+          hasIssues = true;
+          console.log(`  current failures: ${testResult.errorCount || (testResult.errors && testResult.errors.length) || 1} test(s) failed`);
+          if (testResult.errors) {
+            for (const err of testResult.errors) {
+              console.log(`    FAIL ${err.message || err.file}`);
+            }
+          }
+        }
+      } else if (fs.existsSync(baselinePath)) {
+        let baselineData = null;
+        try {
+          baselineData = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
+        } catch (e) {
+          baselineData = null;
+        }
+
+        if (baselineData && Array.isArray(baselineData.passing)) {
+          const currentPassing = new Set(testResult.passing || []);
+          const regressed = baselineData.passing.filter((name) => !currentPassing.has(name));
+          if (regressed.length > 0) {
+            hasIssues = true;
+            console.log(`  ${regressed.length} regression(s) against baseline:`);
+            for (const name of regressed) {
+              console.log(`    FAIL ${name}`);
+            }
+          } else if (!testResult.passed || testResult.errorCount > 0) {
+            hasIssues = true;
+            console.log(`  no regressions against baseline (${baselineData.passing.length} tests), but current test run has ${testResult.errorCount || (testResult.errors && testResult.errors.length) || 1} failure(s):`);
+            if (testResult.errors) {
+              for (const err of testResult.errors) {
+                console.log(`    FAIL ${err.message || err.file}`);
+              }
+            }
+          } else {
+            console.log(`  none (${baselineData.passing.length} baseline test(s) still passing)`);
+          }
+        } else {
+          console.log('  baseline file corrupt or invalid');
+          if (!testResult.passed || testResult.errorCount > 0) {
+            hasIssues = true;
+            console.log(`  test summary: ${(testResult.passing || []).length} passed, ${testResult.errorCount || (testResult.errors && testResult.errors.length) || 1} failed`);
+            if (testResult.errors) {
+              for (const err of testResult.errors) {
+                console.log(`    FAIL ${err.message || err.file}`);
+              }
+            }
+          } else {
+            console.log(`  test summary: ${(testResult.passing || []).length} passed, 0 failed`);
+          }
+        }
+      } else {
+        console.log('  no baseline (.tandem/check-baseline.json absent; run `tandem check --baseline` to set)');
+        if (!testResult.passed || testResult.errorCount > 0) {
+          hasIssues = true;
+          console.log(`  test summary: ${(testResult.passing || []).length} passed, ${testResult.errorCount || (testResult.errors && testResult.errors.length) || 1} failed`);
+          if (testResult.errors) {
+            for (const err of testResult.errors) {
+              console.log(`    FAIL ${err.message || err.file}`);
+            }
+          }
+        } else {
+          console.log(`  test summary: ${(testResult.passing || []).length} passed, 0 failed`);
+        }
+      }
+    }
+
+    process.exit(hasIssues ? 1 : 0);
+  } catch (e) {
+    console.error(`tandem check: internal error: ${e.message}`);
+    process.exit(2);
+  }
 }
 
 const [, , cmd, ...rest] = process.argv;
@@ -425,12 +639,14 @@ else if (cmd === 'doctor') doctor(cwd).catch((e) => { console.error(String((e &&
 else if (cmd === 'run') run(cwd, rest);
 else if (cmd === 'bench') bench(cwd, rest);
 else if (cmd === 'check') check(cwd, rest);
+else if (cmd === 'capture') capture(cwd, rest);
 else if (cmd === 'status') process.exit(status(cwd, rest));
 else if (cmd === 'evidence') process.exit(evidence(cwd, rest));
 else if (cmd === '--version' || cmd === '-v') console.log(pkg.version);
 else {
   console.log(`tandem ${pkg.version}\n`);
-  console.log('  check     honest non-executing inspection of this source tree');
+  console.log('  check     active project diagnosis (type errors, affected importers, regressed tests)');
+  console.log('  capture   honest non-executing inspection of this source tree');
   console.log('  status    inspect durable task/lifecycle/delivery/resource/recovery + coherence gates');
   console.log('  evidence  inspect attributable contracts, actions, observations, gate evidence');
   console.log('  init      set up this project');

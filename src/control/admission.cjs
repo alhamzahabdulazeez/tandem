@@ -154,7 +154,8 @@ function admitAndRelease({ store, proposal, budget, boundary, clock }) {
   }
 
   // 7. recheck expiry while still serialized.
-  if (Date.now() >= Date.parse(proposal.nonextendableExpiry)) {
+  const tCommit = typeof clock === 'function' ? Date.parse(clock()) : Date.now();
+  if (tCommit >= Date.parse(proposal.nonextendableExpiry)) {
     // expired between check and commit: close out as known-not-dispatched.
     closeOut(store, decision, { disposition: 'KNOWN_NOT_DISPATCHED', clock });
     return Object.assign({}, decision, { dispatch: 'KNOWN_NOT_DISPATCHED', releaseRefused: true, reason: 'expired before release' });
