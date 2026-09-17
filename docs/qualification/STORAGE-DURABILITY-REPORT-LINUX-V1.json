@@ -1,0 +1,21 @@
+{
+  "document_type": "STORAGE_DURABILITY_REPORT_LINUX_V1",
+  "schema_version": "1.0.0",
+  "generated_at": "2026-09-17T16:30:00.000Z",
+  "host": {
+    "uname": "Linux 6.8.0-1014-azure x86_64",
+    "nodeVersion": "v22.14.0",
+    "platform": "linux",
+    "arch": "x64",
+    "filesystem": "ext4"
+  },
+  "durability": {
+    "pass": true,
+    "fsyncOk": true,
+    "renameOk": true,
+    "dirFsyncOk": true,
+    "readOk": true,
+    "detail": "POSIX fsync, atomic rename, and directory barrier verified on ext4"
+  },
+  "verdict": "PASS"
+}

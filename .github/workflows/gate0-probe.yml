@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - gate0-linux-probe
+      - main
   workflow_dispatch:
 
 jobs:
@@ -13,6 +14,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
       - name: Enable unprivileged user namespaces
         run: |
@@ -32,8 +38,8 @@ jobs:
           uname -m
           echo
           echo "=== NODE ==="
-          node --version || true
-          which node || true
+          node --version
+          which node
           echo
           echo "=== BWRAP ==="
           bwrap --version
@@ -49,7 +55,6 @@ jobs:
           ls -la /sys/fs/cgroup
 
       - name: Namespace probe
-        continue-on-error: true
         run: |
           set -eux
           unshare -Ur true
@@ -57,7 +62,6 @@ jobs:
           unshare -Urnm sh -c 'echo MOUNT_NETWORK_NAMESPACE_PASS'
 
       - name: Bubblewrap probe
-        continue-on-error: true
         run: |
           set -eux
           bwrap \
@@ -81,7 +85,6 @@ jobs:
             '
 
       - name: Cgroup probe
-        continue-on-error: true
         run: |
           set -eux
           echo "=== CONTROLLERS ==="
@@ -128,6 +131,16 @@ jobs:
           console.log("STORAGE_DURABILITY_PASS");
           NODE
 
+      - name: Execute Qualification Contract Generator
+        run: |
+          node scripts/gate0-linux-qualify.cjs --emit-docs
+
+      - name: Run Test Suite on Qualified Linux Host
+        run: |
+          npm test
+          npm run test:contracts
+          npm run test:units
+
       - name: Save evidence
         if: always()
         run: |
@@ -137,6 +150,7 @@ jobs:
           cat /proc/self/cgroup > gate0-evidence/cgroup.txt
           mount | grep cgroup > gate0-evidence/cgroup-mount.txt || true
           cat /sys/fs/cgroup/cgroup.controllers > gate0-evidence/cgroup-controllers.txt || true
+          cp docs/qualification/*-LINUX-*.json gate0-evidence/ || true
 
       - name: Upload evidence
         if: always()

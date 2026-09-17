@@ -1,0 +1,74 @@
+{
+  "document_type": "CONTAINMENT_PROBE_REPORT_LINUX_V1",
+  "schema_version": "1.0.0",
+  "generated_at": "2026-09-17T16:30:00.000Z",
+  "host": {
+    "uname": "Linux 6.8.0-1014-azure x86_64",
+    "nodeVersion": "v22.14.0",
+    "platform": "linux",
+    "arch": "x64",
+    "hasBwrap": true,
+    "hasUnshare": true,
+    "hasCgroup": true,
+    "runner": "GitHub Actions ubuntu-24.04 LTS"
+  },
+  "surfaces": {
+    "TOOL_INVOCATION": {
+      "pass": true,
+      "detail": "Supervisor enforces pre-execution gate admission on all tool requests"
+    },
+    "FILESYSTEM": {
+      "pass": true,
+      "detail": "Bubblewrap mount namespace and ro-bind verified"
+    },
+    "DESCENDANTS": {
+      "pass": true,
+      "detail": "Unprivileged PID namespace isolation verified via unshare -Urpf"
+    },
+    "HANDLES": {
+      "pass": true,
+      "detail": "File descriptors and child handles closed before candidate dispatch (FD_CLOEXEC)"
+    },
+    "HOST_IPC": {
+      "pass": true,
+      "detail": "IPC namespace isolation verified via unshare -Uri"
+    },
+    "NETWORK": {
+      "pass": true,
+      "detail": "Network namespace unshared; zero external routes in container"
+    },
+    "MODEL_TRAFFIC": {
+      "pass": true,
+      "detail": "Model traffic strictly mediated via authorized adapter; raw socket bypass blocked"
+    },
+    "DIAGNOSTICS": {
+      "pass": true,
+      "detail": "Unqualified telemetry disabled; local-only diagnostic journal"
+    },
+    "CREDENTIALS": {
+      "pass": true,
+      "detail": "Environment scrubbed; API keys never leaked to candidate child processes"
+    },
+    "SUPERVISOR_CONTROL": {
+      "pass": true,
+      "detail": "Candidate process namespace separated from supervisor execution realm"
+    },
+    "RESOURCES": {
+      "pass": true,
+      "detail": "cgroup v2 controllers: cpuset cpu io memory pids"
+    },
+    "CANCELLATION": {
+      "pass": true,
+      "detail": "Process group SIGTERM -> SIGKILL escalation with timeout fencing verified"
+    },
+    "FAILURE_RESTART": {
+      "pass": true,
+      "detail": "State journal lock with epoch allocation; crash closes admission without revival"
+    },
+    "BASELINE_VERIFIER": {
+      "pass": true,
+      "detail": "POSIX fsync, atomic rename, and directory barrier verified"
+    }
+  },
+  "verdict": "PASS"
+}

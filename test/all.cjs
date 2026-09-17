@@ -16,6 +16,7 @@ const ROOT = __dirname;
 
 function collect(dir, out) {
   for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (ent.name === 'fixtures' || ent.name === 'node_modules') continue;
     const full = path.join(dir, ent.name);
     if (ent.isDirectory()) { collect(full, out); continue; }
     if (ent.name.endsWith('.test.js')) out.push(full);
