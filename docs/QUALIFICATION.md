@@ -7,11 +7,11 @@ This document records authoritative owner decisions resolving the initial blocke
 | Blocker | Description | Owner Decision Status | Qualification Status |
 | :--- | :--- | :--- | :--- |
 | **IB-01** | Runtime profile & containment | **DECIDED** | **QUALIFIED** (Docker runtime profile in CI) |
-| **IB-02** | First-slice baseline repository | **DECIDED** | **QUALIFIED** (Commit `afa46cd`) |
-| **IB-03** | Resource ceilings & reserve | **DECIDED** | **QUALIFIED** (Numeric ceilings verified) |
-| **IB-04** | Paired evaluation protocol & criteria | **DECIDED** | **QUALIFIED** (Gate 3 frozen protocol) |
+| **IB-02** | First-slice baseline repository | **DECIDED** | **OPEN** (Execution against baseline pending) |
+| **IB-03** | Resource ceilings & reserve | **DECIDED** | **OPEN** (Runtime enforcement evidence pending) |
+| **IB-04** | Paired evaluation protocol & criteria | **DECIDED** | **OPEN** (Paired evaluation pending) |
 
-> **Authoritative Invariant:** All initial blockers (IB-01 through IB-04) are formally **DECIDED** and **QUALIFIED** under the verified CI Docker runtime profile on Linux (`ubuntu-24.04`). Android / Termux remains strictly development-only and NOT QUALIFIED.
+> **Authoritative Invariant:** Only **IB-01** is **QUALIFIED** under the verified CI Docker runtime profile on Linux (`ubuntu-24.04`). **IB-02**, **IB-03**, and **IB-04** are **DECIDED** with qualification **OPEN** pending execution and measurement evidence. Android / Termux remains strictly development-only and NOT QUALIFIED.
 
 ---
 
@@ -43,7 +43,8 @@ This document records authoritative owner decisions resolving the initial blocke
 - **Baseline Commit Anchor:** `afa46cd`
 - **Scope:** First-slice mutation, CLI behavior, predicate binding, and end-to-end qualification contract baseline anchored at commit `afa46cd`.
 - **Decision State:** **DECIDED**
-- **Qualification State:** **QUALIFIED**
+- **Qualification State:** **OPEN**
+- **Pending Requirements:** The first slice has not been executed against commit `afa46cd`; no candidate run, no observations, no acceptance result exists.
 
 ---
 
@@ -57,7 +58,8 @@ Numeric resource ceilings per action:
 - **Maximum Tool Calls:** 20 tool calls
 - **Mandatory Reserve:** 20% mandatory reserve buffer across all bounded dimensions
 - **Decision State:** **DECIDED**
-- **Qualification State:** **QUALIFIED**
+- **Qualification State:** **OPEN**
+- **Pending Requirements:** The ceilings are written down but no runtime enforcement evidence exists.
 
 ---
 
@@ -70,7 +72,8 @@ Evaluation protocol parameters for Gate 3 and superiority verification:
 - **Maximum Permissible Overhead:** 1.8× baseline resource consumption
 - **Uncertainty Rule:** Overlapping confidence intervals mean no superiority claim may be asserted.
 - **Decision State:** **DECIDED**
-- **Qualification State:** **QUALIFIED**
+- **Qualification State:** **OPEN**
+- **Pending Requirements:** No paired evaluation has been run; zero of the 30 tasks are complete.
 
 ---
 
@@ -78,6 +81,6 @@ Evaluation protocol parameters for Gate 3 and superiority verification:
 
 1. Live environment probe output recorded in `docs/probe-ubuntu-24.04.txt`.
 2. Execute `.github/workflows/contracts-linux.yml` with host test suite, container test suite, and Docker containment proof jobs.
-3. Containment proof verified in CI (run `35397253342`, commit `a2187aa`) confirming network isolation, PID isolation, cgroup limits, and read-only root.
-4. Gate 0 qualification closed under the Docker runtime profile on Linux CI.
+3. Containment proof verified in CI (run `35397253342`, commit `a2187aa`) confirming network isolation, PID isolation, cgroup limits, and read-only root — establishing IB-01 as **QUALIFIED**.
+4. IB-02, IB-03, and IB-04 remain **OPEN** until live first-slice execution, runtime enforcement measurement, and paired evaluation protocol runs are performed and recorded.
 5. Android / Termux explicitly documented as development-only and NOT QUALIFIED.
