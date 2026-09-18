@@ -77,7 +77,8 @@ function normalizeRules(rules) {
   // A path cannot be both selected and excluded. Encoding that as a rule object
   // is a configuration conflict — fail closed at capture-plan time.
   const conflicts = [];
-  for (const p of Object.keys(exclude.prefixes)) {
+  const allExcludeKeys = new Set([...Object.keys(exclude.prefixes), ...Object.keys(exclude.exact)]);
+  for (const p of allExcludeKeys) {
     if (Object.prototype.hasOwnProperty.call(include.exact, p) || Object.prototype.hasOwnProperty.call(include.prefixes, p)) {
       conflicts.push(p);
     }
@@ -112,10 +113,14 @@ function normalizePatternSet(raw, name) {
 function normalizePath(p) {
   if (typeof p !== 'string') return null;
   const s = p.split('\\').join('/').replace(/^\.\//, '');
-  if (s.startsWith('/') || s.startsWith('..') || s.startsWith('./') || /^[A-Za-z]:/.test(s) || s === '.' || s === '..') {
+  if (s.startsWith('/') || /^[A-Za-z]:/.test(s)) {
     return null;
   }
   if (s.indexOf('\u0000') >= 0) return null;
+  const segments = s.split('/');
+  for (const seg of segments) {
+    if (seg === '.' || seg === '..') return null;
+  }
   return s === '' ? null : s;
 }
 
