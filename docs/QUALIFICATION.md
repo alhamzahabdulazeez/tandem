@@ -8,10 +8,10 @@ This document records authoritative owner decisions resolving the initial blocke
 | :--- | :--- | :--- | :--- |
 | **IB-01** | Runtime profile & containment | **DECIDED** | **QUALIFIED** (Docker runtime profile in CI) |
 | **IB-02** | First-slice baseline repository | **DECIDED** | **OPEN** (Execution against baseline pending) |
-| **IB-03** | Resource ceilings & reserve | **DECIDED** | **OPEN** (Runtime enforcement evidence pending) |
+| **IB-03** | Resource ceilings & reserve | **DECIDED** | **PARTIALLY QUALIFIED** / **OPEN** (Container limits enforced; counters pending) |
 | **IB-04** | Paired evaluation protocol & criteria | **DECIDED** | **OPEN** (Paired evaluation pending) |
 
-> **Authoritative Invariant:** Only **IB-01** is **QUALIFIED** under the verified CI Docker runtime profile on Linux (`ubuntu-24.04`). **IB-02**, **IB-03**, and **IB-04** are **DECIDED** with qualification **OPEN** pending execution and measurement evidence. Android / Termux remains strictly development-only and NOT QUALIFIED.
+> **Authoritative Invariant:** Only **IB-01** is **QUALIFIED** under the verified CI Docker runtime profile on Linux (`ubuntu-24.04`). **IB-03** is **PARTIALLY QUALIFIED** (container runtime enforcement verified for time, process count, and memory; file/line/tool counters and reserve buffer are NOT ENFORCED) and remains **OPEN**. **IB-02** and **IB-04** are **DECIDED** with qualification **OPEN** pending execution and measurement evidence. Android / Termux remains strictly development-only and NOT QUALIFIED.
 
 ---
 
@@ -57,9 +57,18 @@ Numeric resource ceilings per action:
 - **Maximum Changed Lines:** 600 lines
 - **Maximum Tool Calls:** 20 tool calls
 - **Mandatory Reserve:** 20% mandatory reserve buffer across all bounded dimensions
+
 - **Decision State:** **DECIDED**
-- **Qualification State:** **OPEN**
-- **Pending Requirements:** The ceilings are written down but no runtime enforcement evidence exists.
+- **Qualification State:** **PARTIALLY QUALIFIED** (Qualification stays **OPEN**)
+- **Enforcement Status & Evidence (CI Run `35405783410`, Commit `fc02521`):**
+  - **ENFORCED with Evidence:**
+    - **Wall-Clock Time:** 480s ceiling enforced via timeout/kill (exit code 137 / SIGKILL).
+    - **Process Ceiling:** Enforced via fork failure at `pids-limit=20` ceiling (`can't fork: Resource temporarily unavailable`).
+    - **Memory Ceiling:** Enforced via `OOMKilled=true` and exit code 137 / SIGKILL under `--memory=64m --memory-swap=64m`.
+  - **NOT ENFORCED:**
+    - Files read, files changed, changed lines, tool calls, and the 20% reserve.
+    - These are declared policy with no runtime enforcement and no counters in the codebase.
+- **Pending Requirements:** IB-03 stays **OPEN** until Tandem itself counts and enforces the four unenforced dimensions.
 
 ---
 

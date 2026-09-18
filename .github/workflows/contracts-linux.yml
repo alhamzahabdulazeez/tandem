@@ -263,7 +263,7 @@ jobs:
             echo "Memory ceiling enforcement OK: process OOM-killed (exit code $MEM_EXIT / SIGKILL, OOMKilled=$OOM_STATUS)"
             echo ""
 
-            echo "=== 4. MANDATORY RESERVE (20%) ENFORCEMENT ASSERTIONS ==="
+            echo "=== 4. RESERVE POLICY ARITHMETIC (NOT ENFORCEMENT) ==="
             node -e '
             const ceilings = [
               { name: "Wall-Clock Time", total: 480, unit: "s" },
@@ -273,7 +273,7 @@ jobs:
               { name: "Tool Calls", total: 20, unit: "calls" },
             ];
             const RESERVE_PCT = 0.20;
-            console.log("Asserting 20% mandatory reserve across all bounded dimensions:");
+            console.log("Computing 20% mandatory reserve policy arithmetic across all bounded dimensions:");
             console.log("--------------------------------------------------------------------------------");
             console.log(String("Dimension").padEnd(25) + String("Total Ceiling").padEnd(16) + String("Effective (80%)").padEnd(18) + String("Reserved (20%)").padEnd(16) + "Status");
             console.log("--------------------------------------------------------------------------------");
@@ -289,7 +289,7 @@ jobs:
                 `${c.total} ${c.unit}`.padEnd(16) +
                 `${effective} ${c.unit}`.padEnd(18) +
                 `${reserved} ${c.unit}`.padEnd(16) +
-                (valid ? "VERIFIED" : "FAILED")
+                (valid ? "COMPUTED" : "FAILED")
               );
             }
             console.log("--------------------------------------------------------------------------------");
@@ -297,8 +297,9 @@ jobs:
               console.error("ERROR: Reserve calculation assertion failed!");
               process.exit(1);
             }
-            console.log("Mandatory reserve assertions OK: 20% held back across all dimensions.");
+            console.log("Reserve policy arithmetic OK: 20% computed buffer across all dimensions.");
             '
+            echo "NOTE: Files-read, files-changed, changed-lines, and tool-call ceilings have no runtime enforcement in Tandem today; only wall-clock time, process count, and memory are enforced by the container runtime."
             echo ""
           } | tee ceilings-evidence.txt
 
