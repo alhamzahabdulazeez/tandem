@@ -275,7 +275,7 @@ function recoverSupervisor(opts) {
   // §10.9 truthful former-incarnation disposition: non-successful UNLESS a
   // complete durable successful record already exists AND its payload
   // integrity is verified against retained bytes.
-  const priorComplete = records.filter((r) => r.kind === 'finalization' && (r.result === 'COMPLETE' || r.result === 'COMPLETE_WITH_LIMITATION'));
+  const priorComplete = records.filter((r) => r.kind === 'finalization' && (r.result === 'COMPLETE' || r.result === 'COMPLETE_WITH_LIMITATION' || r.stopReason === 'COMPLETE' || r.stopReason === 'COMPLETE_WITH_LIMITATION'));
   const published = records.filter((r) => r.kind === 'delivery' && r.persistenceState === 'PUBLISHED');
   let preservedSuccess = false;
   if (priorComplete.length > 0 && published.length > 0) {
@@ -327,6 +327,7 @@ module.exports = {
   closeAdmission,
   openAdmission,
   selectUnresolved,
+  reconcileLiability,
   DEFAULT_VERIFY_PAYLOAD,
   DEFAULT_RECOVERY,
 };
