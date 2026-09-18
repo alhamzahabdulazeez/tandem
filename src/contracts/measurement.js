@@ -491,18 +491,26 @@ function computePrimaryBenefit(agentAloneMetrics, tandemMetrics, protocolManifes
     else if (lower.includes('human') || lower.includes('effort') || lower.includes('intervention')) metricKey = 'human_effort';
     else metricKey = 'acceptance_rate';
   } else if (metricDesc && typeof metricDesc === 'object') {
-    metricKey = metricDesc.metric || 'acceptance_rate';
-    direction = metricDesc.direction || 'higher_is_better';
+    const mName = (metricDesc.metric || '').toLowerCase();
+    if (mName.includes('completion') || mName.includes('acceptance') || mName.includes('started')) {
+      metricKey = 'acceptance_rate';
+    } else {
+      metricKey = metricDesc.metric || 'acceptance_rate';
+    }
+    const dir = (metricDesc.direction || '').toLowerCase();
+    direction = (dir.includes('lower') || dir.includes('decrease') || dir.includes('reduction') || dir === 'decrease')
+      ? 'lower_is_better'
+      : 'higher_is_better';
   }
 
   // Extract values from raw metrics.
   function extractVal(m, key) {
     if (!m) return NaN;
-    if (key === 'acceptance_rate') {
+    if (key === 'acceptance_rate' || key === 'all_started_completion_rate' || key === 'completion_rate') {
       const out = m.outcomes || {};
-      const total = extractNumeric(out.totalStartedTasks || out.startedTasks || 1);
+      const total = extractNumeric(out.totalStartedTasks !== undefined ? out.totalStartedTasks : out.startedTasks);
       const completed = extractNumeric(out.completed || 0);
-      return total > 0 ? completed / total : NaN;
+      return (Number.isFinite(total) && total > 0) ? completed / total : NaN;
     }
     if (m[key] !== undefined) return extractNumeric(m[key]);
     if (m.summary && m.summary[key] !== undefined) return extractNumeric(m.summary[key]);
