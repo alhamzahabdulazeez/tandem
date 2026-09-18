@@ -134,6 +134,7 @@ jobs:
     steps:
       - name: Run Docker containment proof
         run: |
+          set -euo pipefail
           {
             echo "=== 1. FULL CONTAINER CONTAINMENT ==="
             docker run --rm --network=none --pids-limit=64 --memory=512m --read-only --tmpfs /tmp alpine:3 sh -c 'id; ps -ef | wc -l; wget -T3 -q -O- http://example.com; echo net_exit=$?'
@@ -163,6 +164,11 @@ jobs:
             echo ""
           } | tee containment-docker.txt
 
+          if grep -q "ERROR:" containment-docker.txt; then
+            echo "Docker containment proof failed: ERROR detected in evidence output."
+            exit 1
+          fi
+
       - name: Upload Docker containment artifact
         uses: actions/upload-artifact@v4
         with:
@@ -183,6 +189,7 @@ jobs:
 
       - name: Run runtime ceilings enforcement proof
         run: |
+          set -euo pipefail
           {
             echo "================================================================================"
             echo "IB-03 RUNTIME CEILINGS ENFORCEMENT PROOF"
@@ -230,18 +237,30 @@ jobs:
             echo ""
 
             echo "=== 3. MEMORY CEILING ENFORCEMENT PROOF ==="
-            echo "Testing: docker run --rm --memory=64m alpine:3 sh -c 'dd if=/dev/zero of=/dev/shm/x bs=1M count=256'"
+            echo "Testing: docker run --rm --memory=64m --memory-swap=64m alpine:3 sh -c 'tail /dev/zero'"
             set +e
-            MEM_OUT=$(docker run --rm --memory=64m alpine:3 sh -c 'dd if=/dev/zero of=/dev/shm/x bs=1M count=256' 2>&1)
+            MEM_OUT=$(docker run --rm --memory=64m --memory-swap=64m alpine:3 sh -c 'tail /dev/zero' 2>&1)
             MEM_EXIT=$?
             set -e
             echo "$MEM_OUT"
             echo "Observed exit code: $MEM_EXIT"
-            if [ "$MEM_EXIT" -ne 137 ]; then
-              echo "ERROR: Memory ceiling 64m not OOM-killed (expected exit code 137, observed $MEM_EXIT)"
+
+            CID=$(docker create --memory=64m --memory-swap=64m alpine:3 sh -c 'tail /dev/zero')
+            set +e
+            docker start -a "$CID" >/dev/null 2>&1
+            INSPECT_EXIT=$?
+            set -e
+            OOM_STATUS=$(docker inspect "$CID" --format '{{.State.OOMKilled}}' 2>/dev/null || echo "unknown")
+            INSPECT_CODE=$(docker inspect "$CID" --format '{{.State.ExitCode}}' 2>/dev/null || echo "$INSPECT_EXIT")
+            docker rm "$CID" >/dev/null 2>&1 || true
+            echo "Docker inspect OOMKilled flag: $OOM_STATUS"
+            echo "Docker inspect ExitCode: $INSPECT_CODE"
+
+            if [ "$MEM_EXIT" -ne 137 ] && [ "$OOM_STATUS" != "true" ]; then
+              echo "ERROR: Memory ceiling 64m not OOM-killed (expected exit code 137 or OOMKilled=true, observed exit code $MEM_EXIT, OOMKilled=$OOM_STATUS)"
               exit 1
             fi
-            echo "Memory ceiling enforcement OK: process OOM-killed (exit code 137 / SIGKILL)"
+            echo "Memory ceiling enforcement OK: process OOM-killed (exit code $MEM_EXIT / SIGKILL, OOMKilled=$OOM_STATUS)"
             echo ""
 
             echo "=== 4. MANDATORY RESERVE (20%) ENFORCEMENT ASSERTIONS ==="
@@ -282,6 +301,11 @@ jobs:
             '
             echo ""
           } | tee ceilings-evidence.txt
+
+          if grep -q "ERROR:" ceilings-evidence.txt; then
+            echo "Ceilings enforcement proof failed: ERROR detected in evidence output."
+            exit 1
+          fi
 
       - name: Upload ceilings evidence artifact
         uses: actions/upload-artifact@v4
