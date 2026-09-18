@@ -1,4 +1,4 @@
-name: Linux Contracts & Environment Probe
+name: Contracts & Environment Probe (Linux)
 
 on:
   push:
@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  contracts:
-    name: Run Contracts Test Suite
+  suite:
+    name: Run Test Suite
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -24,70 +24,106 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run unit & contract tests
+      - name: Run test suite
         run: node test/all.cjs
 
-  probe-environment:
-    name: Probe Linux Environment
+  probe:
+    name: Environment Probe
     runs-on: ubuntu-24.04
     steps:
-      - name: Probe bwrap (bubblewrap)
-        run: |
-          echo "=== PROBE: bwrap ==="
-          if command -v bwrap >/dev/null 2>&1; then
-            echo "bwrap binary: $(which bwrap)"
-            bwrap --version
-            if bwrap --ro-bind / / --dev /dev --proc /proc true 2>/dev/null; then
-              echo "bwrap execution: AVAILABLE"
-            else
-              echo "bwrap execution: FAILED (installed but execution failed)"
-            fi
-          else
-            echo "bwrap binary: NOT INSTALLED"
-          fi
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Probe unshare -Urm
-        run: |
-          echo "=== PROBE: unshare -Urm ==="
-          if command -v unshare >/dev/null 2>&1; then
-            echo "unshare binary: $(which unshare)"
-            if unshare -Urm true 2>/dev/null; then
-              echo "unshare -Urm: AVAILABLE"
-              unshare -Urm id
-            else
-              echo "unshare -Urm: NOT AVAILABLE (failed)"
-            fi
-          else
-            echo "unshare binary: NOT INSTALLED"
-          fi
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
-      - name: Probe cgroup v2
+      - name: Run probe and collect diagnostics
         run: |
-          echo "=== PROBE: cgroup v2 ==="
-          if [ -d "/sys/fs/cgroup" ]; then
-            fstype=$(stat -fc %T /sys/fs/cgroup 2>/dev/null || echo "unknown")
-            echo "cgroup filesystem type: $fstype"
-            if [ -f "/sys/fs/cgroup/cgroup.controllers" ]; then
-              echo "cgroup v2: AVAILABLE"
-              echo "controllers: $(cat /sys/fs/cgroup/cgroup.controllers)"
-            else
-              echo "cgroup v2: NOT AVAILABLE (cgroup.controllers missing)"
-            fi
-          else
-            echo "/sys/fs/cgroup: NOT MOUNTED"
-          fi
+          {
+            echo "=== SYSTEM (uname -a) ==="
+            uname -a
+            echo ""
 
-      - name: Probe PID namespaces
-        run: |
-          echo "=== PROBE: PID namespaces ==="
-          if command -v unshare >/dev/null 2>&1; then
-            if unshare -Urpf --mount-proc sh -c 'echo "Inside PID namespace: pid=$$"; ps -ef' 2>/dev/null; then
-              echo "PID namespaces (unprivileged): AVAILABLE"
-            elif unshare -p -f true 2>/dev/null; then
-              echo "PID namespaces (privileged/standard): AVAILABLE"
+            echo "=== NODE (node -v) ==="
+            node -v
+            which node
+            echo ""
+
+            echo "=== BWRAP ==="
+            if command -v bwrap >/dev/null 2>&1; then
+              echo "Path: $(which bwrap)"
+              bwrap --version || true
+              if bwrap --ro-bind / / --dev /dev --proc /proc true 2>&1; then
+                echo "Status: AVAILABLE (execution succeeded)"
+              else
+                echo "Status: EXECUTION_FAILED"
+              fi
             else
-              echo "PID namespaces: NOT AVAILABLE"
+              echo "Status: NOT INSTALLED"
             fi
-          else
-            echo "unshare binary: NOT INSTALLED"
-          fi
+            echo ""
+
+            echo "=== UNSHARE -Urm ==="
+            if command -v unshare >/dev/null 2>&1; then
+              echo "Path: $(which unshare)"
+              unshare --version || true
+              if unshare -Urm id 2>&1; then
+                echo "Status: AVAILABLE (unshare -Urm succeeded)"
+              else
+                echo "Status: EXECUTION_FAILED"
+              fi
+            else
+              echo "Status: NOT INSTALLED"
+            fi
+            echo ""
+
+            echo "=== CGROUP V2 CONTROLLERS ==="
+            if [ -d "/sys/fs/cgroup" ]; then
+              echo "Mount type: $(stat -fc %T /sys/fs/cgroup 2>/dev/null || echo unknown)"
+              if [ -f "/sys/fs/cgroup/cgroup.controllers" ]; then
+                echo "Status: AVAILABLE"
+                echo "Controllers: $(cat /sys/fs/cgroup/cgroup.controllers)"
+                echo "Subtree Control: $(cat /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || echo none)"
+              else
+                echo "Status: NOT AVAILABLE (cgroup.controllers missing)"
+              fi
+            else
+              echo "Status: NOT MOUNTED"
+            fi
+            echo ""
+
+            echo "=== PID NAMESPACES ==="
+            if command -v unshare >/dev/null 2>&1; then
+              if unshare -Urpf --mount-proc sh -c 'ps -ef' 2>&1; then
+                echo "Status: AVAILABLE (unprivileged PID namespace succeeded)"
+              elif unshare -p -f true 2>&1; then
+                echo "Status: AVAILABLE (privileged PID namespace succeeded)"
+              else
+                echo "Status: EXECUTION_FAILED"
+              fi
+            else
+              echo "Status: NOT INSTALLED"
+            fi
+            echo ""
+
+            echo "=== SECCOMP ==="
+            grep -i Seccomp /proc/self/status || true
+            if dpkg -s libseccomp2 >/dev/null 2>&1; then
+              dpkg -s libseccomp2 | grep -E 'Package|Version|Status' || true
+              echo "Status: AVAILABLE"
+            elif [ -f "/proc/sys/kernel/seccomp/actions_avail" ]; then
+              echo "Actions available: $(cat /proc/sys/kernel/seccomp/actions_avail)"
+              echo "Status: AVAILABLE"
+            else
+              echo "Status: UNKNOWN / NOT DETECTED"
+            fi
+            echo ""
+          } | tee probe-output.txt
+
+      - name: Upload probe output artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-output
+          path: probe-output.txt
