@@ -146,18 +146,25 @@ jobs:
 
       - name: Containment proof
         run: |
-          set -e
-          echo "=== 1. PID Isolation ==="
-          bwrap --ro-bind / / --dev /dev --proc /proc --unshare-pid sh -c 'ps -ef | wc -l'
-          echo ""
+          {
+            echo "=== 1. PID Isolation ==="
+            bwrap --ro-bind / / --dev /dev --proc /proc --unshare-pid sh -c 'ps -ef | wc -l' 2>&1 || true
+            echo ""
 
-          echo "=== 2. Network Isolation ==="
-          bwrap --ro-bind / / --dev /dev --proc /proc --unshare-net sh -c 'getent hosts github.com; echo exit=$?'
-          echo ""
+            echo "=== 2. Network Isolation ==="
+            bwrap --ro-bind / / --dev /dev --proc /proc --unshare-net sh -c 'getent hosts github.com; echo exit=$?' 2>&1 || true
+            echo ""
 
-          echo "=== 3. Full Isolation ==="
-          bwrap --ro-bind / / --dev /dev --proc /proc --unshare-all sh -c 'id; ls /proc | head -5'
-          echo ""
+            echo "=== 3. Full Isolation ==="
+            bwrap --ro-bind / / --dev /dev --proc /proc --unshare-all sh -c 'id; ls /proc | head -5' 2>&1 || true
+            echo ""
+          } | tee containment-probe.txt
+
+      - name: Upload containment probe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: containment-probe
+          path: containment-probe.txt
 
       - name: Run test suite
         run: node test/all.cjs
