@@ -170,16 +170,22 @@ function admit(ledger, dimension, actionId, maxExposure, category) {
   if (typeof maxExposure !== 'number' || !Number.isFinite(maxExposure) || maxExposure < 0) {
     return { admitted: false, reason: `admit: maxExposure must be a finite non-negative number` };
   }
-  const check = invariantOK(dim, maxExposure);
-  if (!check.ok) return { admitted: false, reason: check.reason };
+  if (dim.unknown != null) {
+    return { admitted: false, reason: `unknown usage (${dim.unknown}) on "${dim.dimension}" prevents hard admission` };
+  }
+  if (category === 'mandatory') {
+    if (!(maxExposure <= dim.protectedFuture)) {
+      return { admitted: false, reason: `mandatory reservation ${maxExposure} exceeds protected future capacity (${dim.protectedFuture}) on "${dimension}"` };
+    }
+  } else {
+    const check = invariantOK(dim, maxExposure);
+    if (!check.ok) return { admitted: false, reason: check.reason };
+  }
 
   const res = copyReservations(dim.reservations);
   res[actionId] = { amount: maxExposure, category };
   let next = withReservations(dim, res);
   if (category === 'mandatory') {
-    if (!(maxExposure <= dim.protectedFuture)) {
-      return { admitted: false, reason: `mandatory reservation ${maxExposure} exceeds protected future capacity (${dim.protectedFuture}) on "${dimension}"` };
-    }
     next = Object.freeze({ ...next, protectedFuture: dim.protectedFuture - maxExposure });
   }
   const dimensions = { ...ledger.dimensions, [dimension]: next };

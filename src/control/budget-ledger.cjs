@@ -87,12 +87,15 @@ function admitToBudget(rec, { dimension, actionId, maxExposure, category }) {
     return { ok: false, reason: 'maxExposure must be a finite non-negative number' };
   }
   if (d.reservations[actionId]) return { ok: false, reason: `action "${actionId}" already holds a reservation on "${dimension}"` };
-  const lhs = d.settled + sumReservations(d.reservations) + maxExposure + d.protectedFuture;
-  if (!(lhs <= d.hardLimit)) {
-    return { ok: false, reason: `hard limit exceeded on "${dimension}": ${lhs} > ${d.hardLimit}` };
-  }
-  if (category === 'MANDATORY' && !(maxExposure <= d.protectedFuture)) {
-    return { ok: false, reason: `mandatory reservation ${maxExposure} exceeds protected future capacity (${d.protectedFuture}) on "${dimension}"` };
+  if (category === 'MANDATORY') {
+    if (!(maxExposure <= d.protectedFuture)) {
+      return { ok: false, reason: `mandatory reservation ${maxExposure} exceeds protected future capacity (${d.protectedFuture}) on "${dimension}"` };
+    }
+  } else {
+    const lhs = d.settled + sumReservations(d.reservations) + maxExposure + d.protectedFuture;
+    if (!(lhs <= d.hardLimit)) {
+      return { ok: false, reason: `hard limit exceeded on "${dimension}": ${lhs} > ${d.hardLimit}` };
+    }
   }
   const reservations = Object.assign({}, d.reservations, { [actionId]: { amount: maxExposure, category } });
   const next = Object.assign({}, d, {
