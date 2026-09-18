@@ -127,3 +127,22 @@ jobs:
         with:
           name: probe-output
           path: probe-output.txt
+
+  isolated:
+    name: Run Test Suite in Isolated Container
+    runs-on: ubuntu-24.04
+    container:
+      image: node:22-bookworm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies and bubblewrap
+        run: |
+          apt-get update
+          apt-get install -y bubblewrap
+          bwrap --version
+          npm ci
+
+      - name: Run test suite
+        run: node test/all.cjs
