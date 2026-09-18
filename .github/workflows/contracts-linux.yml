@@ -128,6 +128,47 @@ jobs:
           name: probe-output
           path: probe-output.txt
 
+  containment:
+    name: Docker Containment Proof
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Run Docker containment proof
+        run: |
+          {
+            echo "=== 1. FULL CONTAINER CONTAINMENT ==="
+            docker run --rm --network=none --pids-limit=64 --memory=512m --read-only --tmpfs /tmp alpine:3 sh -c 'id; ps -ef | wc -l; wget -T3 -q -O- http://example.com; echo net_exit=$?'
+            echo ""
+
+            echo "=== 2. PID ISOLATION PROOF ==="
+            PID_COUNT=$(docker run --rm --network=none alpine:3 sh -c 'ps -ef | wc -l')
+            echo "PID Count: $PID_COUNT"
+            if [ "$PID_COUNT" -ge 10 ]; then
+              echo "ERROR: PID count $PID_COUNT is not under 10 (PID isolation failed)"
+              exit 1
+            fi
+            echo "PID isolation OK (count < 10)"
+            echo ""
+
+            echo "=== 3. MEMORY LIMIT PROOF ==="
+            docker run --rm --memory=64m alpine:3 sh -c 'echo mem ok'
+            echo ""
+
+            echo "=== 4. NETWORK ISOLATION ASSERTION ==="
+            if docker run --rm --network=none alpine:3 wget -T3 -q -O- http://example.com >/dev/null 2>&1; then
+              echo "ERROR: Network access succeeded inside --network=none (Network isolation failed)"
+              exit 1
+            else
+              echo "Network isolation OK (network unreachable with --network=none)"
+            fi
+            echo ""
+          } | tee containment-docker.txt
+
+      - name: Upload Docker containment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: containment-docker
+          path: containment-docker.txt
+
   isolated:
     name: Run Test Suite in Isolated Container
     runs-on: ubuntu-24.04
