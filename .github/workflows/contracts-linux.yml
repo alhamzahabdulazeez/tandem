@@ -1,0 +1,93 @@
+name: Linux Contracts & Environment Probe
+
+on:
+  push:
+    branches:
+      - wip-t01-contracts
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  contracts:
+    name: Run Contracts Test Suite
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit & contract tests
+        run: node test/all.cjs
+
+  probe-environment:
+    name: Probe Linux Environment
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Probe bwrap (bubblewrap)
+        run: |
+          echo "=== PROBE: bwrap ==="
+          if command -v bwrap >/dev/null 2>&1; then
+            echo "bwrap binary: $(which bwrap)"
+            bwrap --version
+            if bwrap --ro-bind / / --dev /dev --proc /proc true 2>/dev/null; then
+              echo "bwrap execution: AVAILABLE"
+            else
+              echo "bwrap execution: FAILED (installed but execution failed)"
+            fi
+          else
+            echo "bwrap binary: NOT INSTALLED"
+          fi
+
+      - name: Probe unshare -Urm
+        run: |
+          echo "=== PROBE: unshare -Urm ==="
+          if command -v unshare >/dev/null 2>&1; then
+            echo "unshare binary: $(which unshare)"
+            if unshare -Urm true 2>/dev/null; then
+              echo "unshare -Urm: AVAILABLE"
+              unshare -Urm id
+            else
+              echo "unshare -Urm: NOT AVAILABLE (failed)"
+            fi
+          else
+            echo "unshare binary: NOT INSTALLED"
+          fi
+
+      - name: Probe cgroup v2
+        run: |
+          echo "=== PROBE: cgroup v2 ==="
+          if [ -d "/sys/fs/cgroup" ]; then
+            fstype=$(stat -fc %T /sys/fs/cgroup 2>/dev/null || echo "unknown")
+            echo "cgroup filesystem type: $fstype"
+            if [ -f "/sys/fs/cgroup/cgroup.controllers" ]; then
+              echo "cgroup v2: AVAILABLE"
+              echo "controllers: $(cat /sys/fs/cgroup/cgroup.controllers)"
+            else
+              echo "cgroup v2: NOT AVAILABLE (cgroup.controllers missing)"
+            fi
+          else
+            echo "/sys/fs/cgroup: NOT MOUNTED"
+          fi
+
+      - name: Probe PID namespaces
+        run: |
+          echo "=== PROBE: PID namespaces ==="
+          if command -v unshare >/dev/null 2>&1; then
+            if unshare -Urpf --mount-proc sh -c 'echo "Inside PID namespace: pid=$$"; ps -ef' 2>/dev/null; then
+              echo "PID namespaces (unprivileged): AVAILABLE"
+            elif unshare -p -f true 2>/dev/null; then
+              echo "PID namespaces (privileged/standard): AVAILABLE"
+            else
+              echo "PID namespaces: NOT AVAILABLE"
+            fi
+          else
+            echo "unshare binary: NOT INSTALLED"
+          fi
