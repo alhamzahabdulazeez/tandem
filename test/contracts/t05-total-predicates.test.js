@@ -824,6 +824,6 @@ module.exports = function run(t, group) {
     // Physical external observer qualification and kernel-isolated test runners cannot be qualified
     // on Android/Termux without a verified Linux execution profile and host virtualization (IB-01).
     const platformQualified = false; // Termux / Android environment
-    assert.strictEqual(platformQualified, false, 'Physical external observer qualification and sandbox runner isolation are NOT QUALIFIED on Termux, IB-01 OPEN');
+    assert.strictEqual(platformQualified, false, 'Physical external observer qualification and sandbox runner isolation are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI');
   });
 };

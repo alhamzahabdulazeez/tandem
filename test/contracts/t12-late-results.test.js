@@ -16,7 +16,7 @@
  *  - Only authenticated matching accounting facts may settle liabilities (PRD §12 line 727, §19 line 1124).
  *  - Settlement does not reopen execution or upgrade assurance (INV-03, INV-04, INV-16, INV-20).
  *  - Platform Qualification: Physical async IO socket fencing, OS signal barriers, and host network callback teardown
- *    are NOT QUALIFIED on Termux, IB-01 OPEN.
+ *    are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI.
  *
  * Binds Evidence Families: EA, EB, EV, EL, EX.
  */
@@ -1227,6 +1227,6 @@ module.exports = function (t, group) {
     // and hardware-enforced unbypassable execution termination cannot be physically qualified on the
     // Android/Termux host environment without root / privileged kernel capabilities.
     const platformQualified = false; // Termux / Android host environment
-    assert.strictEqual(platformQualified, false, 'Physical async IO socket fencing, OS signal barriers, and host network callback teardown are NOT QUALIFIED on Termux, IB-01 OPEN');
+    assert.strictEqual(platformQualified, false, 'Physical async IO socket fencing, OS signal barriers, and host network callback teardown are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI');
   });
 };

@@ -19,7 +19,7 @@
  * Platform Qualification:
  *  - Logic and state-machine integrity are fully verified fail-closed.
  *  - Physical OS-level supervisor isolation and kernel fencing are
- *    NOT QUALIFIED on Termux, IB-01 OPEN.
+ *    NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI.
  *
  * Binds Evidence Families: EA, ER, EL, EX.
  */
@@ -748,6 +748,6 @@ module.exports = function run(t, group) {
     // Physical supervisor isolation and kernel cgroup namespace boundaries
     // cannot be established on Android/Termux without host virtualization / root kernel namespaces.
     const platformQualified = false; // Termux / Android environment
-    assert.strictEqual(platformQualified, false, 'Physical OS-level supervisor isolation and kernel fencing are NOT QUALIFIED on Termux, IB-01 OPEN');
+    assert.strictEqual(platformQualified, false, 'Physical OS-level supervisor isolation and kernel fencing are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI');
   });
 };

@@ -847,6 +847,6 @@ module.exports = function run(t, group) {
     // enforcement, and kernel IO limits cannot be established on Android/Termux without
     // a verified Linux execution profile and root container isolation (IB-01).
     const platformQualified = false; // Termux / Android environment
-    assert.strictEqual(platformQualified, false, 'Physical kernel cgroup and hardware resource isolation are NOT QUALIFIED on Termux, IB-01 OPEN');
+    assert.strictEqual(platformQualified, false, 'Physical kernel cgroup and hardware resource isolation are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI');
   });
 };

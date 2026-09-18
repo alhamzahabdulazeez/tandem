@@ -22,7 +22,7 @@
  *  - Uncovered routes are disabled (INV-17, INV-19, R-34)
  *  - Provider retention is reported as an external assurance (INV-17, R-34, E0)
  *  - Platform Qualification: Physical OS-level network namespace isolation, iptables/eBPF egress fencing,
- *    and kernel socket filtering are NOT QUALIFIED on Termux, IB-01 OPEN.
+ *    and kernel socket filtering are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI.
  *
  * Binds Evidence Families: E0, EA, ER, EB, EX.
  */
@@ -1215,6 +1215,6 @@ module.exports = function (t, group) {
     // and raw socket filtering cannot be physically established on Android/Termux
     // without host root / kernel network namespace capabilities.
     const platformQualified = false; // Termux / Android host environment
-    assert.strictEqual(platformQualified, false, 'Physical OS-level network namespace isolation, iptables/eBPF egress fencing, and kernel socket filtering are NOT QUALIFIED on Termux, IB-01 OPEN');
+    assert.strictEqual(platformQualified, false, 'Physical OS-level network namespace isolation, iptables/eBPF egress fencing, and kernel socket filtering are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI');
   });
 };

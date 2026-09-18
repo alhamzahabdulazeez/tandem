@@ -22,7 +22,7 @@
  *  - No post-result adjustment, hidden-test leakage, or success-only accounting occurs (R-24, R-43, §23).
  *  - Correctness/safety hard gates cannot be offset by efficiency (INV-22, §25 Gate 3).
  *  - Platform Qualification: Physical paired container isolation, hardware resource fencing,
- *    multi-node benchmark containment, and kernel execution isolation are NOT QUALIFIED on Termux, IB-01 OPEN.
+ *    multi-node benchmark containment, and kernel execution isolation are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI.
  *
  * Binds Evidence Families: EM, EV, EX.
  */
@@ -912,6 +912,6 @@ module.exports = function run(t, group) {
     // and kernel execution isolation cannot be physically qualified on the Android/Termux host environment
     // without root / Linux container namespaces / cgroups.
     const platformQualified = false; // Termux / Android host environment
-    assert.strictEqual(platformQualified, false, 'Physical paired container isolation, hardware resource fencing, multi-node benchmark containment, and kernel execution isolation are NOT QUALIFIED on Termux, IB-01 OPEN');
+    assert.strictEqual(platformQualified, false, 'Physical paired container isolation, hardware resource fencing, multi-node benchmark containment, and kernel execution isolation are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI');
   });
 };

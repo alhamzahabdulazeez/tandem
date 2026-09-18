@@ -21,7 +21,7 @@
  *  - No unsuccessful path becomes accepted (INV-09, §21).
  *  - Known obligation failures and bounded liabilities remain visible (§19 step 6, §21).
  *  - Platform Qualification: Physical supervisor process isolation, kernel-level process tree fencing/cgroup freezing,
- *    and unbypassable kernel admission closure are NOT QUALIFIED on Termux, IB-01 OPEN.
+ *    and unbypassable kernel admission closure are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI.
  *
  * Binds Evidence Families: EA, ER, EB, EL, ED, EX.
  */
@@ -1260,6 +1260,6 @@ module.exports = function (t, group) {
     // non-bypassable admission barriers cannot be physically qualified on the Android/Termux
     // host environment without root / privileged namespace capabilities.
     const platformQualified = false; // Termux / Android host environment
-    assert.strictEqual(platformQualified, false, 'Physical supervisor process isolation, kernel-level process tree fencing/cgroup freezing, and unbypassable kernel admission closure are NOT QUALIFIED on Termux, IB-01 OPEN');
+    assert.strictEqual(platformQualified, false, 'Physical supervisor process isolation, kernel-level process tree fencing/cgroup freezing, and unbypassable kernel admission closure are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI');
   });
 };

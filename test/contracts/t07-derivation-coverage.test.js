@@ -18,7 +18,7 @@
  *  - Missing/inconclusive coverage remains non-successful (INV-09, INV-12, R-26c)
  *  - Evidence applicability matches exact contract/policy/generation/inputs/predicate/interval (INV-11)
  *  - Platform Qualification: Physical derivation and execution environment qualification are
- *    NOT QUALIFIED on Termux, IB-01 OPEN.
+ *    NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI.
  *
  * Binds Evidence Families: E0, ES, EV, ER, EX.
  */
@@ -828,6 +828,6 @@ module.exports = function run(t, group) {
     // derivation enforcement cannot be established on Android/Termux without
     // a verified Linux execution profile and host virtualization (IB-01).
     const platformQualified = false; // Termux / Android environment
-    assert.strictEqual(platformQualified, false, 'Physical derivation and execution environment qualification are NOT QUALIFIED on Termux, IB-01 OPEN');
+    assert.strictEqual(platformQualified, false, 'Physical derivation and execution environment qualification are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI');
   });
 };

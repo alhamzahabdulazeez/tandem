@@ -16,7 +16,7 @@
  *  - Verification-affecting changes are refused or leave affected proof unresolved (INCONCLUSIVE / MISSING)
  *  - Applicable adverse supporting evidence is preserved and cannot be discarded (FAIL_WINS)
  *  - Candidate self-certification is denied; diagnostic artifacts cannot prove their own adequacy
- *  - Physical external observer qualification and sandbox runner isolation are NOT QUALIFIED on Termux, IB-01 OPEN
+ *  - Physical external observer qualification and sandbox runner isolation are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI
  *
  * Binds Evidence Families: EC, EV, ER, EX.
  */
@@ -764,6 +764,6 @@ module.exports = function run(t, group) {
     // Physical external observer qualification and sandbox runner isolation cannot be qualified
     // on Android/Termux without a verified Linux execution profile and host virtualization (IB-01).
     const platformQualified = false; // Termux / Android environment
-    assert.strictEqual(platformQualified, false, 'Physical external observer qualification and sandbox runner isolation are NOT QUALIFIED on Termux, IB-01 OPEN');
+    assert.strictEqual(platformQualified, false, 'Physical external observer qualification and sandbox runner isolation are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI');
   });
 };

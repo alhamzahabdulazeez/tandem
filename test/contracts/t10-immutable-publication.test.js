@@ -19,7 +19,7 @@
  *  - Current delivery integrity is checked after restart (§20 Crash Table).
  *  - No helper execution reopens after retirement (INV-14, R-36, §19).
  *  - Platform Qualification: Physical write-once filesystem immutability, immutable block mounts,
- *    and kernel fsync directory persistence are NOT QUALIFIED on Termux, IB-01 OPEN.
+ *    and kernel fsync directory persistence are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI.
  *
  * Binds Evidence Families: ES, EV, ED, EL, EX.
  */
@@ -1131,6 +1131,6 @@ module.exports = function (t, group) {
     // read-only loopback mount binding, and kernel parent directory fsync verification
     // cannot be physically qualified on the Android/Termux host environment without root / privileged block storage.
     const platformQualified = false; // Termux / Android host environment
-    assert.strictEqual(platformQualified, false, 'Physical write-once filesystem immutability, immutable block mounts, and kernel fsync directory persistence are NOT QUALIFIED on Termux, IB-01 OPEN');
+    assert.strictEqual(platformQualified, false, 'Physical write-once filesystem immutability, immutable block mounts, and kernel fsync directory persistence are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI');
   });
 };

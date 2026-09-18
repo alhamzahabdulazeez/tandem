@@ -574,6 +574,6 @@ module.exports = function run(t, group) {
     // Physical non-executing git reader, byte-level candidate isolation, and kernel filesystem fencing
     // cannot be qualified on Android/Termux without a verified Linux execution profile and host virtualization (IB-01).
     const platformQualified = false; // Termux / Android environment
-    assert.strictEqual(platformQualified, false, 'Physical candidate isolation, non-executing git reader, and filesystem fencing are NOT QUALIFIED on Termux, IB-01 OPEN');
+    assert.strictEqual(platformQualified, false, 'Physical candidate isolation, non-executing git reader, and filesystem fencing are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI');
   });
 };

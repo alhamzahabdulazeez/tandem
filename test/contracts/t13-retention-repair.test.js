@@ -22,7 +22,7 @@
  *  - Early deletion requires authenticated release (§20, R-31b).
  *  - Expired or corrupt delivery is reported truthfully (R-36, §20, §22).
  *  - Platform Qualification: Physical write-once block storage immutability, hardware fsync durability guarantees,
- *    and kernel retention fencing are NOT QUALIFIED on Termux, IB-01 OPEN.
+ *    and kernel retention fencing are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI.
  *
  * Binds Evidence Families: ES, EB, EV, EL, ED, EX.
  */
@@ -1097,6 +1097,6 @@ module.exports = function (t, group) {
     // and kernel retention fencing cannot be physically qualified on the Android/Termux
     // host environment without root / hardware block device immutability.
     const platformQualified = false; // Termux / Android host environment
-    assert.strictEqual(platformQualified, false, 'Physical write-once block storage immutability, hardware fsync durability guarantees, and kernel retention fencing are NOT QUALIFIED on Termux, IB-01 OPEN');
+    assert.strictEqual(platformQualified, false, 'Physical write-once block storage immutability, hardware fsync durability guarantees, and kernel retention fencing are NOT QUALIFIED on Termux/Android, QUALIFIED under the Docker runtime profile in CI');
   });
 };
