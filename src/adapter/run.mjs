@@ -20,6 +20,7 @@ function parseArgs(argv) {
     if (a === '--model' || a === '-m') out.model = argv[++i];
     else if (a === '--provider') out.provider = argv[++i];
     else if (a === '-p' || a === '--print') { /* accepted for familiarity */ }
+    else if (a === '-v' || a === '--verbose') { /* accepted */ }
     else out.rest.push(a);
   }
   out.prompt = out.rest.join(' ').trim() || null;
@@ -179,7 +180,7 @@ export async function run(argv, deps = {}) {
   err('tandem: verification active — 5 decision points, working set enforced.\n' +
       '        disable with TANDEM_HOOKS=off\n\n');
 
-  const apiKey = process.env.TANDEM_API_KEY || null;
+  const apiKey = process.env.TANDEM_API_KEY || (deps_modelConfig().baseUrl ? 'none' : null);
   if (VERBOSE) err('  [diag] baseUrl       : ' + (deps_modelConfig().baseUrl || '(unset — set TANDEM_BASE_URL)') + '\n' +
                    '  [diag] api key       : ' + (apiKey ? 'present' : 'MISSING — set TANDEM_API_KEY') + '\n');
 
@@ -193,6 +194,7 @@ export async function run(argv, deps = {}) {
   });
 
   const seen = [];
+  let streamedAnyText = false;
   if (typeof agent.subscribe === 'function') {
     agent.subscribe((ev) => {
       if (!ev) return;
@@ -209,7 +211,25 @@ export async function run(argv, deps = {}) {
         }
         err('  [diag] event         : ' + ev.type + extra + '\n');
       }
-      if (ev.type === 'text' && typeof ev.text === 'string') out(ev.text);
+
+      if (ev.type === 'message_start') {
+        streamedAnyText = false;
+      } else if (ev.type === 'message_update') {
+        if (ev.assistantMessageEvent && ev.assistantMessageEvent.type === 'text_delta' && typeof ev.assistantMessageEvent.delta === 'string') {
+          out(ev.assistantMessageEvent.delta);
+          streamedAnyText = true;
+        }
+      } else if (ev.type === 'message_end') {
+        const m = ev.message;
+        if (!streamedAnyText && m && m.role === 'assistant' && Array.isArray(m.content)) {
+          for (const block of m.content) {
+            if (block && block.type === 'text' && typeof block.text === 'string') {
+              out(block.text);
+            }
+          }
+        }
+        streamedAnyText = false;
+      }
     });
   }
 
@@ -224,10 +244,8 @@ export async function run(argv, deps = {}) {
           '        credentials configured. Tandem does not manage them (D-09).\n');
       return 3;
     }
-    if (typeof agent.state === 'function') {
-      const st = agent.state();
-      if (st && st.errorMessage) { err('\ntandem: agent reported — ' + st.errorMessage + '\n'); return 4; }
-    }
+    const st = typeof agent.state === 'function' ? agent.state() : agent.state;
+    if (st && st.errorMessage) { err('\ntandem: agent reported — ' + st.errorMessage + '\n'); return 4; }
     out('\n');
     return 0;
   } catch (e) {
