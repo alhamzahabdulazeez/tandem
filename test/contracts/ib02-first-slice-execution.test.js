@@ -367,16 +367,14 @@ module.exports = function run(t, group) {
 
   group('IB-02 Qualification Status Invariants');
 
-  t('docs/QUALIFICATION.md records IB-02 as OPEN (NOT QUALIFIED)', () => {
+  t('docs/QUALIFICATION.md records IB-02 as QUALIFIED based on RUN-IB02-005 evidence', () => {
     const qualDoc = fs.readFileSync(path.join(REPO_ROOT, 'docs', 'QUALIFICATION.md'), 'utf8');
     assert.ok(qualDoc.includes('IB-02'));
-    assert.ok(qualDoc.includes('OPEN'));
-    // Ensure IB-02 is NOT marked QUALIFIED
+    assert.ok(qualDoc.includes('QUALIFIED'));
     const lines = qualDoc.split('\n');
     const ib02SummaryLine = lines.find(l => l.includes('**IB-02**') && l.includes('First-slice'));
     assert.ok(ib02SummaryLine, 'Summary table line for IB-02 found');
-    assert.ok(ib02SummaryLine.includes('**OPEN**'), 'IB-02 summary status must be OPEN');
-    assert.ok(!ib02SummaryLine.includes('**QUALIFIED**'), 'IB-02 must NOT be marked QUALIFIED');
+    assert.ok(ib02SummaryLine.includes('**QUALIFIED**'), 'IB-02 summary status must be QUALIFIED');
   });
 
   t('docs/FIRST_SLICE.md records frozen specification, held-out grader, and OPEN qualification state', () => {
