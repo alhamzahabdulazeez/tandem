@@ -186,6 +186,49 @@ function verifyBaseline(targetDir, timeoutMs = 15000) {
   };
 }
 
+function verifyMutationScope(targetDir, allowedFiles = FIRST_SLICE_MANIFEST.scope.allowed_files, baseCommit = BASELINE_COMMIT) {
+  let changedFiles = [];
+  try {
+    const diffOutput = execSync(`git diff --name-only ${baseCommit}`, {
+      cwd: targetDir,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe']
+    }).trim();
+
+    const untrackedOutput = execSync('git ls-files --others --exclude-standard', {
+      cwd: targetDir,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe']
+    }).trim();
+
+    const diffList = diffOutput ? diffOutput.split('\n').map(s => s.trim()).filter(Boolean) : [];
+    const untrackedList = untrackedOutput ? untrackedOutput.split('\n').map(s => s.trim()).filter(Boolean) : [];
+
+    const allModified = Array.from(new Set([...diffList, ...untrackedList]));
+    changedFiles = allModified.filter(f => f !== 'node_modules' && !f.startsWith('node_modules/') && !f.startsWith('.git/'));
+  } catch (err) {
+    return {
+      valid: false,
+      changedFiles: [],
+      allowedFiles,
+      disallowedFiles: [],
+      error: 'SCOPE_CHECK_FAILED',
+      message: err.message
+    };
+  }
+
+  const disallowedFiles = changedFiles.filter(file => !allowedFiles.includes(file));
+  const valid = disallowedFiles.length === 0;
+
+  return {
+    valid,
+    changedFiles,
+    allowedFiles,
+    disallowedFiles,
+    error: valid ? null : 'DISALLOWED_MUTATION_TEST_TAMPERING'
+  };
+}
+
 function verifyHeldOutGrader(targetDir, specPath = path.join(REPO_ROOT, HELD_OUT_SPEC_REL), timeoutMs = 10000) {
   const res = spawnSync(process.execPath, [specPath, targetDir], {
     timeout: timeoutMs,
@@ -211,6 +254,64 @@ function verifyHeldOutGrader(targetDir, specPath = path.join(REPO_ROOT, HELD_OUT
     stdout,
     stderr,
     error: isGreen ? null : 'HELD_OUT_SPEC_FAILED'
+  };
+}
+
+function evaluateFirstSlice(targetDir, options = {}) {
+  const allowedFiles = options.allowedFiles || FIRST_SLICE_MANIFEST.scope.allowed_files;
+  const baseCommit = options.baseCommit || BASELINE_COMMIT;
+
+  // 1. Verify mutation scope boundary first
+  const scopeResult = verifyMutationScope(targetDir, allowedFiles, baseCommit);
+  if (!scopeResult.valid) {
+    return {
+      ok: false,
+      stage: 'scope_fencing',
+      error: scopeResult.error,
+      scopeResult,
+      stage1: null,
+      stage2: null,
+      verdict: 'FAILED'
+    };
+  }
+
+  // 2. Stage 1: Non-regression baseline verification
+  const stage1 = verifyBaseline(targetDir, options.stage1TimeoutMs || 15000);
+  if (!stage1.isGreen) {
+    return {
+      ok: false,
+      stage: 'stage1_non_regression',
+      error: stage1.error || 'STAGE_1_FAILED',
+      scopeResult,
+      stage1,
+      stage2: null,
+      verdict: 'FAILED'
+    };
+  }
+
+  // 3. Stage 2: Held-out acceptance grader
+  const specPath = options.specPath || path.join(REPO_ROOT, HELD_OUT_SPEC_REL);
+  const stage2 = verifyHeldOutGrader(targetDir, specPath, options.stage2TimeoutMs || 10000);
+  if (!stage2.isGreen) {
+    return {
+      ok: false,
+      stage: 'stage2_held_out_acceptance',
+      error: stage2.error || 'STAGE_2_FAILED',
+      scopeResult,
+      stage1,
+      stage2,
+      verdict: 'FAILED'
+    };
+  }
+
+  return {
+    ok: true,
+    stage: 'complete',
+    error: null,
+    scopeResult,
+    stage1,
+    stage2,
+    verdict: 'PASSED'
   };
 }
 
@@ -290,6 +391,34 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   const isJson = args.includes('--json');
   const keepWorkDir = args.includes('--keep');
+  const evalIdx = args.indexOf('--evaluate');
+  const verifyIdx = args.indexOf('--verify');
+  const targetIdx = evalIdx !== -1 ? evalIdx : verifyIdx;
+
+  if (targetIdx !== -1 && args[targetIdx + 1]) {
+    const targetDir = path.resolve(args[targetIdx + 1]);
+    const evalResult = evaluateFirstSlice(targetDir);
+    if (isJson) {
+      console.log(JSON.stringify(evalResult, null, 2));
+    } else {
+      console.log('TANDEM IB-02 First-Slice Evaluation (Scope & Two-Stage Grader)\n');
+      console.log(`  Overall Verdict:  ${evalResult.verdict}`);
+      console.log(`  Scope Valid:      ${evalResult.scopeResult.valid} (${evalResult.scopeResult.changedFiles.join(', ') || 'no changes'})`);
+      if (evalResult.scopeResult.disallowedFiles.length > 0) {
+        console.log(`  Disallowed Files: ${evalResult.scopeResult.disallowedFiles.join(', ')}`);
+      }
+      if (evalResult.stage1) {
+        console.log(`  Stage 1 (Regr):   ${evalResult.stage1.isGreen ? 'PASS' : 'FAIL'} (${evalResult.stage1.passed} passed, ${evalResult.stage1.failed} failed)`);
+      }
+      if (evalResult.stage2) {
+        console.log(`  Stage 2 (Grader): ${evalResult.stage2.isGreen ? 'PASS' : 'FAIL'} (${evalResult.stage2.passed} passed, ${evalResult.stage2.failed} failed)`);
+      }
+      if (evalResult.error) {
+        console.log(`  Error (${evalResult.stage}): ${evalResult.error}`);
+      }
+    }
+    process.exit(evalResult.ok ? 0 : 1);
+  }
 
   try {
     const result = prepareFirstSlice({ keepWorkDir });
@@ -327,6 +456,8 @@ module.exports = {
   computeFileDigest,
   computePreRunFingerprint,
   verifyBaseline,
+  verifyMutationScope,
   verifyHeldOutGrader,
+  evaluateFirstSlice,
   prepareFirstSlice
 };

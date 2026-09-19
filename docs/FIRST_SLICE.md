@@ -51,7 +51,7 @@ This document defines the exact first-slice execution contract for **IB-02** in 
 
 ### Task ID: `TASK-IB02-ESLINT-DETECT`
 **Title:** ESLint Detection in Gate Detection  
-**Objective:** Extend `detectLint` in `src/gates/detect.cjs` to support detecting `eslint` in package dependencies when `@biomejs/biome` is not configured and `cfg.lintCommand` is unset.
+**Objective:** Extend `detectLint` in `src/gates/detect.cjs` to support detecting `eslint` in package dependencies (returning command `'npx eslint --format json .'`) when `@biomejs/biome` is not configured and `cfg.lintCommand` is unset.
 
 ### Functional Requirements
 1. **Gate Detection Extension (`src/gates/detect.cjs`):**

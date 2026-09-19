@@ -25,7 +25,9 @@ const {
   computeFileDigest,
   computePreRunFingerprint,
   verifyBaseline,
+  verifyMutationScope,
   verifyHeldOutGrader,
+  evaluateFirstSlice,
   prepareFirstSlice
 } = require('../../bin/first-slice.cjs');
 
@@ -216,6 +218,79 @@ module.exports = function run(t, group) {
     assert.strictEqual(result.preRunFingerprint.gitCommit, BASELINE_COMMIT);
     assert.strictEqual(result.manifest.task_id, 'TASK-IB02-ESLINT-DETECT');
     assert.strictEqual(result.manifest.grader_type, 'HELD_OUT');
+  });
+
+  group('IB-02 First-Slice: Mutation Scope Fencing & Disallowed Mutation Refusal');
+
+  t('verifyMutationScope accepts mutations strictly within allowed files (src/gates/detect.cjs)', () => {
+    const prep = prepareFirstSlice({ keepWorkDir: true });
+    try {
+      // Mutate only src/gates/detect.cjs
+      const detectPath = path.join(prep.workDir, 'src', 'gates', 'detect.cjs');
+      const orig = fs.readFileSync(detectPath, 'utf8');
+      fs.writeFileSync(detectPath, orig + '\n// scope test comment\n', 'utf8');
+
+      const scope = verifyMutationScope(prep.workDir);
+      assert.strictEqual(scope.valid, true, 'Mutation in allowed file must be valid');
+      assert.strictEqual(scope.error, null);
+      assert.deepStrictEqual(scope.changedFiles, ['src/gates/detect.cjs']);
+      assert.deepStrictEqual(scope.disallowedFiles, []);
+    } finally {
+      fs.rmSync(prep.workDir, { recursive: true, force: true });
+    }
+  });
+
+  t('verifyMutationScope rejects mutations to test/run.cjs with DISALLOWED_MUTATION_TEST_TAMPERING', () => {
+    const prep = prepareFirstSlice({ keepWorkDir: true });
+    try {
+      // Tamper with test/run.cjs
+      const testPath = path.join(prep.workDir, 'test', 'run.cjs');
+      const orig = fs.readFileSync(testPath, 'utf8');
+      fs.writeFileSync(testPath, orig + '\n// tampering with test suite\n', 'utf8');
+
+      const scope = verifyMutationScope(prep.workDir);
+      assert.strictEqual(scope.valid, false, 'Tampering with test/run.cjs must be rejected');
+      assert.strictEqual(scope.error, 'DISALLOWED_MUTATION_TEST_TAMPERING');
+      assert.ok(scope.disallowedFiles.includes('test/run.cjs'));
+    } finally {
+      fs.rmSync(prep.workDir, { recursive: true, force: true });
+    }
+  });
+
+  t('verifyMutationScope rejects untracked and outside files with DISALLOWED_MUTATION_TEST_TAMPERING', () => {
+    const prep = prepareFirstSlice({ keepWorkDir: true });
+    try {
+      // Add an untracked file outside allowed list
+      const untrackedPath = path.join(prep.workDir, 'test', 'new-test.cjs');
+      fs.writeFileSync(untrackedPath, 'console.log("untracked");\n', 'utf8');
+
+      const scope = verifyMutationScope(prep.workDir);
+      assert.strictEqual(scope.valid, false, 'Untracked files outside allowed scope must be rejected');
+      assert.strictEqual(scope.error, 'DISALLOWED_MUTATION_TEST_TAMPERING');
+      assert.ok(scope.disallowedFiles.includes('test/new-test.cjs'));
+    } finally {
+      fs.rmSync(prep.workDir, { recursive: true, force: true });
+    }
+  });
+
+  t('evaluateFirstSlice fails closed immediately on scope violation before Stage 1 / Stage 2 execution', () => {
+    const prep = prepareFirstSlice({ keepWorkDir: true });
+    try {
+      // Modify test/run.cjs (disallowed)
+      const testPath = path.join(prep.workDir, 'test', 'run.cjs');
+      const origTest = fs.readFileSync(testPath, 'utf8');
+      fs.writeFileSync(testPath, origTest + '\n// disallowed test mutation\n', 'utf8');
+
+      const evalRes = evaluateFirstSlice(prep.workDir);
+      assert.strictEqual(evalRes.ok, false);
+      assert.strictEqual(evalRes.verdict, 'FAILED');
+      assert.strictEqual(evalRes.stage, 'scope_fencing');
+      assert.strictEqual(evalRes.error, 'DISALLOWED_MUTATION_TEST_TAMPERING');
+      assert.strictEqual(evalRes.stage1, null, 'Stage 1 must not be executed when scope check fails');
+      assert.strictEqual(evalRes.stage2, null, 'Stage 2 must not be executed when scope check fails');
+    } finally {
+      fs.rmSync(prep.workDir, { recursive: true, force: true });
+    }
   });
 
   group('IB-02 Qualification Status Invariants');
