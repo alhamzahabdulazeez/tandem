@@ -44,7 +44,11 @@ This document records authoritative owner decisions resolving the initial blocke
 - **Scope:** First-slice mutation, CLI behavior, predicate binding, and end-to-end qualification contract baseline anchored at commit `afa46cd`.
 - **Decision State:** **DECIDED**
 - **Qualification State:** **OPEN**
-- **Pending Requirements:** The first slice has not been executed against commit `afa46cd`; no candidate run, no observations, no acceptance result exists.
+- **Execution History:**
+  - `RUN-IB02-001` (`docs/FIRST_SLICE_RUN_001.md`): Baseline unconfigured candidate run; Stage 1 PASS, Stage 2 FAIL.
+  - `RUN-IB02-002` (`docs/FIRST_SLICE_RUN_002.md`): Live session via OmniRoute host adapter; proved budget enforcement works end-to-end on a live session (blocked at 17 tool calls, zero files changed, honest FAIL from the held-out grader).
+  - `RUN-IB02-003` (`docs/FIRST_SLICE_RUN_003.md`): Live session with dynamic tool-call ceiling override (`TANDEM_CEILING_TOOLCALLS=60`); candidate completed 38 tool calls and changed 2 files; Stage 1 PASS (114/0), Stage 2 FAIL (3/2).
+- **Pending Requirements:** IB-02 remains **OPEN** until a candidate execution satisfies both Stage 1 baseline non-regression and Stage 2 held-out acceptance grader without manual code intervention.
 
 ---
 
@@ -55,7 +59,7 @@ Numeric resource ceilings per action:
 - **Maximum Files Read:** 40 files
 - **Maximum Files Changed:** 12 files
 - **Maximum Changed Lines:** 600 lines
-- **Maximum Tool Calls:** 20 tool calls
+- **Maximum Tool Calls:** 20 tool calls (default; dynamic override via `TANDEM_CEILING_TOOLCALLS`)
 - **Mandatory Reserve:** 20% mandatory reserve buffer across all bounded dimensions
 
 - **Decision State:** **DECIDED**
@@ -65,9 +69,11 @@ Numeric resource ceilings per action:
     - **Wall-Clock Time:** 480s ceiling enforced via timeout/kill (exit code 137 / SIGKILL).
     - **Process Ceiling:** Enforced via fork failure at `pids-limit=20` ceiling (`can't fork: Resource temporarily unavailable`).
     - **Memory Ceiling:** Enforced via `OOMKilled=true` and exit code 137 / SIGKILL under `--memory=64m --memory-swap=64m`.
-  - **Tandem-Enforced (commit `6bf6e7b`):**
-    - Files read, files changed, changed lines and tool calls counted in `src/control/budget-counters.cjs` and blocked in `src/index.cjs` `beforeTool`, with the 20% reserve applied.
-    - Covered by `test/contracts/ib03-budget-counters.test.js`, suite at 1149 passed.
+  - **Tandem-Enforced (commit `6bf6e7b`, live proof in `RUN-IB02-002`):**
+    - Files read, files changed, changed lines, and tool calls counted in `src/control/budget-counters.cjs` and blocked in `src/index.cjs` `beforeTool`, with the 20% reserve applied.
+    - Covered by unit contract tests in `test/contracts/ib03-budget-counters.test.js`.
+    - **Live End-to-End Session Proof (`RUN-IB02-002`):** Proved budget enforcement works end-to-end on a live session (blocked at 17 tool calls exceeding the 16-call effective limit, zero files changed, and received an honest FAIL from the held-out grader).
+    - **Ceiling Evaluation:** The standard 20-call ceiling is being evaluated/tested as possibly too tight for real multi-step tasks (as demonstrated in `RUN-IB02-003` where completing the full editing and test workflow required 38 tool calls). Dynamic environment configuration `TANDEM_CEILING_TOOLCALLS` was introduced to allow experimental adjustment.
 
 ---
 

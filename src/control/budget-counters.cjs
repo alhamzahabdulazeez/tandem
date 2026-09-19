@@ -15,11 +15,21 @@
  * Pure: no dependencies, no clock, no filesystem.
  */
 
+function getToolCallsCeiling() {
+  if (process.env.TANDEM_CEILING_TOOLCALLS) {
+    const val = parseInt(process.env.TANDEM_CEILING_TOOLCALLS, 10);
+    if (!Number.isNaN(val) && val > 0) return val;
+  }
+  return 20;
+}
+
 const DEFAULT_CEILINGS = Object.freeze({
   filesRead: 40,
   filesChanged: 12,
   changedLines: 600,
-  toolCalls: 20,
+  get toolCalls() {
+    return getToolCallsCeiling();
+  },
   reservePct: 0.20,
 });
 
