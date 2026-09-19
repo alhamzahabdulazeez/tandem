@@ -26,6 +26,52 @@ const TASKS_MANIFEST_PATH = path.join(__dirname, 'tasks.json');
 const STATE_PATH = path.join(__dirname, 'state.json');
 
 /**
+ * Loads default environment variables from user shell RC files if not present in process.env.
+ */
+function loadEnvDefaults() {
+  const vars = ['TANDEM_BASE_URL', 'TANDEM_API_KEY', 'TANDEM_MODEL', 'TANDEM_PROVIDER', 'TANDEM_API'];
+  const missing = vars.filter(v => !process.env[v]);
+  if (missing.length === 0) return;
+
+  const home = os.homedir();
+  const rcFiles = [
+    path.join(home, '.bashrc'),
+    path.join(home, '.profile'),
+    path.join(home, '.bash_profile'),
+  ];
+  for (const rc of rcFiles) {
+    if (fs.existsSync(rc)) {
+      try {
+        const content = fs.readFileSync(rc, 'utf8');
+        for (const line of content.split('\n')) {
+          const m = line.match(/^\s*(?:export\s+)?([A-Z0-9_]+)=(?:["']([^"']*)["']|([^\s#]+))/);
+          if (m) {
+            const key = m[1];
+            const val = m[2] !== undefined ? m[2] : m[3];
+            if (vars.includes(key) && !process.env[key]) {
+              process.env[key] = val;
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+}
+
+/**
+ * Returns Termux-specific environment overrides if running under Termux.
+ */
+function termuxExecEnv() {
+  const prefix = process.env.PREFIX || '/data/data/com.termux/files/usr';
+  const lib = path.join(prefix, 'lib', 'libtermux-exec-ld-preload.so');
+  try {
+    return fs.existsSync(lib) ? { LD_PRELOAD: lib } : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
  * Loads the 30 tasks from tasks.json.
  */
 function loadTasks() {
@@ -137,6 +183,7 @@ function loadState() {
 function saveState(state) {
   state.summary = computeSummary(state.runs);
   state.completed_runs = state.runs.filter(r => r.status === 'COMPLETED').length;
+  state.invalid_runs = state.runs.filter(r => r.status === 'INVALID').length;
   const tmpPath = `${STATE_PATH}.tmp.${process.pid}.${Date.now()}`;
   fs.writeFileSync(tmpPath, JSON.stringify(state, null, 2), 'utf8');
   fs.renameSync(tmpPath, STATE_PATH);
@@ -372,6 +419,26 @@ function getDiffMetrics(workDir) {
 function evaluateRunWorkspace(runRecord, task, workDir, telemetry = {}) {
   const startTime = Date.now();
 
+  if (telemetry.is_invalid) {
+    runRecord.status = 'INVALID';
+    runRecord.passed = false;
+    runRecord.stage1_passed = false;
+    runRecord.stage2_passed = false;
+    runRecord.scope_valid = false;
+    runRecord.tool_calls = telemetry.tool_calls || 0;
+    runRecord.files_read = telemetry.files_read || 0;
+    runRecord.files_changed = 0;
+    runRecord.lines_added = 0;
+    runRecord.lines_removed = 0;
+    runRecord.wall_time_ms = telemetry.wall_time_ms || 0;
+    runRecord.stop_reason = telemetry.stop_reason || 'SESSION_FAILED';
+    runRecord.scope_blocks_fired = telemetry.scope_blocks_fired || 0;
+    runRecord.scope_violations = [];
+    runRecord.error = telemetry.stop_reason || 'MODEL_UNREACHED';
+    runRecord.timestamp = new Date().toISOString();
+    return runRecord;
+  }
+
   const scopeResult = verifyScope(workDir, task.allowed_files);
   const stage1 = runStage1(workDir);
   const stage2 = runStage2(workDir, task.grader_rel_path);
@@ -414,6 +481,9 @@ function printSummary(state) {
   console.log(`Total Tasks:        ${state.total_tasks}`);
   console.log(`Total Scheduled:    ${state.total_runs} (30 tasks x 2 arms)`);
   console.log(`Completed Runs:     ${state.completed_runs} / ${state.total_runs}`);
+  if (state.invalid_runs && state.invalid_runs > 0) {
+    console.log(`Invalid Runs:       ${state.invalid_runs} (excluded from trial denominator)`);
+  }
   console.log('');
 
   console.log('--- ARM A (TANDEM_HOOKS=off, Baseline) ---');
@@ -446,9 +516,11 @@ function printSummary(state) {
  * Runs a single candidate session via Tandem adapter.
  */
 function runCandidateSession(workDir, task, arm, timeoutMs = 120000) {
+  loadEnvDefaults();
   const hooksEnv = arm === 'B' ? 'on' : 'off';
   const env = {
     ...process.env,
+    ...termuxExecEnv(),
     TANDEM_HOOKS: hooksEnv,
     TANDEM_ALLOWED_FILES: (task.allowed_files || []).join(','),
   };
@@ -480,13 +552,41 @@ function runCandidateSession(workDir, task, arm, timeoutMs = 120000) {
     scope_blocks_fired = parseInt(telemMatch[3], 10);
   }
 
+  const providerRefused = /quota|rate.?limit|429|insufficient|unauthorized|401|403|payment|credit/i.test(combined);
+  const noModelOutput = child.status === 3 || combined.includes('the session produced no events — the model was not reached');
+  const modelUnresolved = child.status === 2 || combined.includes('could not resolve a model') || combined.includes('host agent not available');
+  const agentError = child.status === 4 || combined.includes('agent reported');
+
   let stop_reason = 'UNKNOWN';
   if (child.status === 0) {
     stop_reason = 'SUCCESS';
   } else if (child.error && child.error.code === 'ETIMEDOUT') {
     stop_reason = 'TIMEOUT';
+  } else if (providerRefused) {
+    stop_reason = 'PROVIDER_REFUSED';
+  } else if (modelUnresolved) {
+    stop_reason = 'MODEL_UNRESOLVED';
+  } else if (noModelOutput) {
+    stop_reason = 'MODEL_UNREACHED';
+  } else if (agentError) {
+    stop_reason = 'AGENT_ERROR';
   } else if (child.status !== 0) {
     stop_reason = 'SESSION_FAILED';
+  }
+
+  const is_invalid = (tool_calls === 0 && stop_reason !== 'SUCCESS') || child.status === 2 || child.status === 3 || providerRefused || modelUnresolved || noModelOutput;
+
+  if (child.error) {
+    console.error(`[IB-04 Runner] Candidate process spawn error: ${child.error.message}`);
+  }
+  if (child.status !== 0 || is_invalid) {
+    console.error(`[IB-04 Runner] Candidate session exit code: ${child.status}, stop_reason: ${stop_reason}`);
+    if (stderr.trim()) {
+      console.error(`[IB-04 Runner] Candidate stderr:\n${stderr.trim()}`);
+    }
+    if (stdout.trim() && !stderr.trim()) {
+      console.error(`[IB-04 Runner] Candidate stdout:\n${stdout.trim()}`);
+    }
   }
 
   return {
@@ -496,6 +596,7 @@ function runCandidateSession(workDir, task, arm, timeoutMs = 120000) {
     wall_time_ms: wallTimeMs,
     stop_reason,
     exit_code: child.status,
+    is_invalid,
     stdout,
     stderr
   };
@@ -513,7 +614,7 @@ function executeRuns(state, options = {}) {
   let executedCount = 0;
 
   for (const run of state.runs) {
-    if (run.status === 'COMPLETED') {
+    if (run.status === 'COMPLETED' || run.status === 'INVALID') {
       continue;
     }
     if (executedCount >= limit) {
@@ -538,11 +639,12 @@ function executeRuns(state, options = {}) {
         scope_blocks_fired: sessionResult.scope_blocks_fired,
         wall_time_ms: sessionResult.wall_time_ms,
         stop_reason: sessionResult.stop_reason,
+        is_invalid: sessionResult.is_invalid
       });
 
-      console.log(`[IB-04 Runner] Completed Run ${run.run_index}: Passed=${run.passed} ToolCalls=${run.tool_calls} FilesRead=${run.files_read} FilesChanged=${run.files_changed} (+${run.lines_added}/-${run.lines_removed}) ScopeBlocks=${run.scope_blocks_fired} StopReason=${run.stop_reason} Time=${run.wall_time_ms}ms`);
+      console.log(`[IB-04 Runner] Completed Run ${run.run_index}: Status=${run.status} Passed=${run.passed} ToolCalls=${run.tool_calls} FilesRead=${run.files_read} FilesChanged=${run.files_changed} (+${run.lines_added}/-${run.lines_removed}) ScopeBlocks=${run.scope_blocks_fired} StopReason=${run.stop_reason} Time=${run.wall_time_ms}ms`);
     } catch (err) {
-      run.status = 'COMPLETED';
+      run.status = 'INVALID';
       run.passed = false;
       run.error = 'RUNNER_EXECUTION_ERROR: ' + err.message;
       run.stop_reason = 'EXECUTION_ERROR';

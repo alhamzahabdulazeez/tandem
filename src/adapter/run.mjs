@@ -10,10 +10,44 @@
  * The three hooks come from session.mjs and carry all five decision points.
  * This file and session.mjs are the only ones that know a host exists.
  */
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createHooks, loadHost, HOST_PACKAGE } from './session.mjs';
 import { createTools } from './tools.mjs';
 
+function loadEnvDefaults() {
+  const vars = ['TANDEM_BASE_URL', 'TANDEM_API_KEY', 'TANDEM_MODEL', 'TANDEM_PROVIDER', 'TANDEM_API'];
+  const missing = vars.filter(v => !process.env[v]);
+  if (missing.length === 0) return;
+
+  const home = os.homedir();
+  const rcFiles = [
+    path.join(home, '.bashrc'),
+    path.join(home, '.profile'),
+    path.join(home, '.bash_profile'),
+  ];
+  for (const rc of rcFiles) {
+    if (fs.existsSync(rc)) {
+      try {
+        const content = fs.readFileSync(rc, 'utf8');
+        for (const line of content.split('\n')) {
+          const m = line.match(/^\s*(?:export\s+)?([A-Z0-9_]+)=(?:["']([^"']*)["']|([^\s#]+))/);
+          if (m) {
+            const key = m[1];
+            const val = m[2] !== undefined ? m[2] : m[3];
+            if (vars.includes(key) && !process.env[key]) {
+              process.env[key] = val;
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+}
+
 function parseArgs(argv) {
+  loadEnvDefaults();
   const out = { model: process.env.TANDEM_MODEL || null, provider: process.env.TANDEM_PROVIDER || null, rest: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
