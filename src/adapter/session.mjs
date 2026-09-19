@@ -77,6 +77,9 @@ function toEvent(ctx, toolCallsInTurn) {
 export function createHooks(cwd, modelId, log = (s) => process.stderr.write(s + '\n'), ceilings, options) {
   const tandem = new Tandem(cwd, modelId, ceilings, options);
   let toolCallsInTurn = 0;
+  let totalToolCalls = 0;
+  const filesRead = new Set();
+  let scopeBlocksFired = 0;
 
   const drain = () => { for (const n of tandem.drainNotices()) log(n); };
 
@@ -85,10 +88,19 @@ export function createHooks(cwd, modelId, log = (s) => process.stderr.write(s + 
     preamble: tandem.sessionStart(),
 
     async beforeToolCall(ctx) {
+      totalToolCalls++;
       toolCallsInTurn++;
-      const verdict = tandem.beforeTool(toEvent(ctx, toolCallsInTurn));
+      const ev = toEvent(ctx, toolCallsInTurn);
+      if (ev.kind === 'read' && ev.file) {
+        filesRead.add(ev.file);
+      }
+      const verdict = tandem.beforeTool(ev);
       drain();
-      if (verdict.block) return { block: true, reason: verdict.reason };
+      if (verdict.block) {
+        scopeBlocksFired++;
+        log(`TANDEM_BLOCK ${verdict.reason}`);
+        return { block: true, reason: verdict.reason };
+      }
       return undefined;
     },
 
@@ -111,6 +123,14 @@ export function createHooks(cwd, modelId, log = (s) => process.stderr.write(s + 
       drain();
       if (verdict.message) log(verdict.message);
       return verdict.done;
+    },
+
+    getTelemetry() {
+      return {
+        toolCalls: totalToolCalls,
+        filesRead: Array.from(filesRead),
+        scopeBlocksFired,
+      };
     },
   };
 }

@@ -237,6 +237,13 @@ export async function run(argv, deps = {}) {
     await agent.prompt(finalPrompt);
     if (typeof agent.waitForIdle === 'function') await agent.waitForIdle();
 
+    const telem = typeof hooks.getTelemetry === 'function' ? hooks.getTelemetry() : {
+      toolCalls: 0,
+      filesRead: [],
+      scopeBlocksFired: 0,
+    };
+    err(`\n[tandem:telemetry] tool_calls=${telem.toolCalls} files_read=${telem.filesRead.length} scope_blocks_fired=${telem.scopeBlocksFired}\n`);
+
     // A turn that produced no events means the model was never reached.
     if (seen.length === 0) {
       err('\ntandem: the session produced no events — the model was not reached.\n' +
@@ -249,6 +256,12 @@ export async function run(argv, deps = {}) {
     out('\n');
     return 0;
   } catch (e) {
+    const telem = typeof hooks.getTelemetry === 'function' ? hooks.getTelemetry() : {
+      toolCalls: 0,
+      filesRead: [],
+      scopeBlocksFired: 0,
+    };
+    err(`\n[tandem:telemetry] tool_calls=${telem.toolCalls} files_read=${telem.filesRead.length} scope_blocks_fired=${telem.scopeBlocksFired}\n`);
     err('\ntandem: session failed — ' + (e && e.message ? e.message : String(e)) + '\n');
     return 1;
   }

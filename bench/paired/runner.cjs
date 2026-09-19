@@ -255,7 +255,7 @@ function verifyScope(workDir, allowedFiles) {
     const untrackedList = untrackedOut ? untrackedOut.split('\n').map(s => s.trim()).filter(Boolean) : [];
 
     const changedFiles = Array.from(new Set([...diffList, ...untrackedList]))
-      .filter(f => !f.startsWith('node_modules/') && !f.startsWith('.git/'));
+      .filter(f => f !== 'node_modules' && !f.startsWith('node_modules/') && f !== '.git' && !f.startsWith('.git/'));
 
     const disallowed = changedFiles.filter(f => !allowedFiles.includes(f));
     return {
@@ -442,12 +442,147 @@ function printSummary(state) {
   console.log('============================================================\n');
 }
 
+/**
+ * Runs a single candidate session via Tandem adapter.
+ */
+function runCandidateSession(workDir, task, arm, timeoutMs = 120000) {
+  const hooksEnv = arm === 'B' ? 'on' : 'off';
+  const env = {
+    ...process.env,
+    TANDEM_HOOKS: hooksEnv,
+    TANDEM_ALLOWED_FILES: (task.allowed_files || []).join(','),
+  };
+
+  const startTime = Date.now();
+  const runScriptPath = path.join(REPO_ROOT, 'src/adapter/run.mjs');
+
+  const child = spawnSync(process.execPath, [runScriptPath, task.prompt], {
+    cwd: workDir,
+    env,
+    encoding: 'utf8',
+    timeout: timeoutMs,
+    stdio: ['pipe', 'pipe', 'pipe']
+  });
+
+  const wallTimeMs = Date.now() - startTime;
+  const stdout = child.stdout || '';
+  const stderr = child.stderr || '';
+  const combined = stdout + '\n' + stderr;
+
+  let tool_calls = 0;
+  let files_read = 0;
+  let scope_blocks_fired = 0;
+
+  const telemMatch = combined.match(/\[tandem:telemetry\]\s+tool_calls=(\d+)\s+files_read=(\d+)\s+scope_blocks_fired=(\d+)/);
+  if (telemMatch) {
+    tool_calls = parseInt(telemMatch[1], 10);
+    files_read = parseInt(telemMatch[2], 10);
+    scope_blocks_fired = parseInt(telemMatch[3], 10);
+  }
+
+  let stop_reason = 'UNKNOWN';
+  if (child.status === 0) {
+    stop_reason = 'SUCCESS';
+  } else if (child.error && child.error.code === 'ETIMEDOUT') {
+    stop_reason = 'TIMEOUT';
+  } else if (child.status !== 0) {
+    stop_reason = 'SESSION_FAILED';
+  }
+
+  return {
+    tool_calls,
+    files_read,
+    scope_blocks_fired,
+    wall_time_ms: wallTimeMs,
+    stop_reason,
+    exit_code: child.status,
+    stdout,
+    stderr
+  };
+}
+
+/**
+ * Executes scheduled evaluation runs in isolated workspaces and persists state.
+ */
+function executeRuns(state, options = {}) {
+  const limit = options.limit !== undefined ? options.limit : Infinity;
+  const timeoutMs = options.timeoutMs || 120000;
+  const tasks = loadTasks();
+  const taskMap = new Map(tasks.map(t => [t.id, t]));
+
+  let executedCount = 0;
+
+  for (const run of state.runs) {
+    if (run.status === 'COMPLETED') {
+      continue;
+    }
+    if (executedCount >= limit) {
+      break;
+    }
+
+    const task = taskMap.get(run.task_id);
+    if (!task) {
+      throw new Error(`Task ${run.task_id} not found in manifest`);
+    }
+
+    console.log(`[IB-04 Runner] Starting Run ${run.run_index}/${state.total_runs}: Task=${task.id} (${task.title}) Arm=${run.arm} (Hooks=${run.tandem_hooks})`);
+
+    const workDir = path.join(os.tmpdir(), `tandem-paired-${run.task_id}-${run.arm}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`);
+
+    try {
+      prepareWorkspace(workDir);
+      const sessionResult = runCandidateSession(workDir, task, run.arm, timeoutMs);
+      evaluateRunWorkspace(run, task, workDir, {
+        tool_calls: sessionResult.tool_calls,
+        files_read: sessionResult.files_read,
+        scope_blocks_fired: sessionResult.scope_blocks_fired,
+        wall_time_ms: sessionResult.wall_time_ms,
+        stop_reason: sessionResult.stop_reason,
+      });
+
+      console.log(`[IB-04 Runner] Completed Run ${run.run_index}: Passed=${run.passed} ToolCalls=${run.tool_calls} FilesRead=${run.files_read} FilesChanged=${run.files_changed} (+${run.lines_added}/-${run.lines_removed}) ScopeBlocks=${run.scope_blocks_fired} StopReason=${run.stop_reason} Time=${run.wall_time_ms}ms`);
+    } catch (err) {
+      run.status = 'COMPLETED';
+      run.passed = false;
+      run.error = 'RUNNER_EXECUTION_ERROR: ' + err.message;
+      run.stop_reason = 'EXECUTION_ERROR';
+      run.timestamp = new Date().toISOString();
+      console.error(`[IB-04 Runner] Error in Run ${run.run_index}:`, err.message);
+    } finally {
+      try {
+        if (fs.existsSync(workDir)) {
+          fs.rmSync(workDir, { recursive: true, force: true });
+        }
+      } catch {
+        // Cleanup error ignored
+      }
+    }
+
+    executedCount++;
+    saveState(state);
+  }
+
+  return executedCount;
+}
+
 // CLI Execution Entrypoint
 if (require.main === module) {
   const args = process.argv.slice(2);
   const isJson = args.includes('--json');
   const isSummary = args.includes('--summary');
   const isReset = args.includes('--reset');
+  const isRun = args.includes('--run');
+
+  let limit = undefined;
+  const limitIdx = args.indexOf('--limit');
+  if (limitIdx !== -1 && args[limitIdx + 1]) {
+    limit = parseInt(args[limitIdx + 1], 10);
+  } else {
+    const limitEq = args.find(a => a.startsWith('--limit='));
+    if (limitEq) {
+      limit = parseInt(limitEq.split('=')[1], 10);
+    }
+  }
 
   if (isReset && fs.existsSync(STATE_PATH)) {
     fs.unlinkSync(STATE_PATH);
@@ -456,7 +591,17 @@ if (require.main === module) {
 
   const state = loadState();
 
-  if (isSummary) {
+  if (isRun) {
+    try {
+      const executed = executeRuns(state, { limit });
+      console.log(`\n[IB-04 Runner] Executed ${executed} run(s). Current status: ${state.completed_runs}/${state.total_runs} completed.`);
+    } catch (err) {
+      console.error('[IB-04 Runner] Fatal execution failure:', err);
+      process.exit(1);
+    }
+  }
+
+  if (isSummary || isRun) {
     if (isJson) {
       console.log(JSON.stringify(state.summary, null, 2));
     } else {
@@ -482,5 +627,7 @@ module.exports = {
   runStage1,
   runStage2,
   prepareWorkspace,
-  evaluateRunWorkspace
+  evaluateRunWorkspace,
+  runCandidateSession,
+  executeRuns
 };

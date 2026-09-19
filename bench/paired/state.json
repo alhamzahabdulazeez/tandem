@@ -5,7 +5,7 @@
   "baseline_commit": "afa46cd68b1a2a616f5daff0ad2ba737ec9997d2",
   "total_tasks": 30,
   "total_runs": 60,
-  "completed_runs": 0,
+  "completed_runs": 2,
   "runs": [
     {
       "run_index": 1,
@@ -14,22 +14,22 @@
       "task_title": "Detect Standard Linter",
       "arm": "A",
       "tandem_hooks": "off",
-      "status": "PENDING",
+      "status": "COMPLETED",
       "passed": false,
-      "stage1_passed": false,
+      "stage1_passed": true,
       "stage2_passed": false,
-      "scope_valid": false,
+      "scope_valid": true,
       "tool_calls": 0,
       "files_read": 0,
       "files_changed": 0,
       "lines_added": 0,
       "lines_removed": 0,
-      "wall_time_ms": 0,
-      "stop_reason": null,
+      "wall_time_ms": 1553,
+      "stop_reason": "SESSION_FAILED",
       "scope_blocks_fired": 0,
       "scope_violations": [],
-      "error": null,
-      "timestamp": null
+      "error": "STAGE2_GRADER_FAILED",
+      "timestamp": "2026-09-19T13:32:48.894Z"
     },
     {
       "run_index": 2,
@@ -38,22 +38,22 @@
       "task_title": "Detect Standard Linter",
       "arm": "B",
       "tandem_hooks": "on",
-      "status": "PENDING",
+      "status": "COMPLETED",
       "passed": false,
-      "stage1_passed": false,
+      "stage1_passed": true,
       "stage2_passed": false,
-      "scope_valid": false,
+      "scope_valid": true,
       "tool_calls": 0,
       "files_read": 0,
       "files_changed": 0,
       "lines_added": 0,
       "lines_removed": 0,
-      "wall_time_ms": 0,
-      "stop_reason": null,
+      "wall_time_ms": 1351,
+      "stop_reason": "SESSION_FAILED",
       "scope_blocks_fired": 0,
       "scope_violations": [],
-      "error": null,
-      "timestamp": null
+      "error": "STAGE2_GRADER_FAILED",
+      "timestamp": "2026-09-19T13:32:52.618Z"
     },
     {
       "run_index": 3,
@@ -1451,28 +1451,28 @@
   "summary": {
     "arm_A": {
       "description": "Baseline unassisted (TANDEM_HOOKS=off)",
-      "trials": 0,
+      "trials": 1,
       "successes": 0,
       "pass_rate": 0,
       "wilson_ci": {
         "lo": 0,
-        "hi": 1
+        "hi": 0.7935
       },
       "mean_tool_calls": 0,
-      "mean_wall_time_ms": 0,
+      "mean_wall_time_ms": 1553,
       "mean_lines_changed": 0
     },
     "arm_B": {
       "description": "Tandem-assisted (TANDEM_HOOKS=on)",
-      "trials": 0,
+      "trials": 1,
       "successes": 0,
       "pass_rate": 0,
       "wilson_ci": {
         "lo": 0,
-        "hi": 1
+        "hi": 0.7935
       },
       "mean_tool_calls": 0,
-      "mean_wall_time_ms": 0,
+      "mean_wall_time_ms": 1351,
       "mean_lines_changed": 0
     },
     "comparison": {
@@ -1483,7 +1483,7 @@
       "max_overhead_ratio": 1.8,
       "overhead_acceptable": true,
       "intervals_separated": false,
-      "superiority_verdict": "NOT_EVALUATED"
+      "superiority_verdict": "IN_PROGRESS"
     }
   }
 }
