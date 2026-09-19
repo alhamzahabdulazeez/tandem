@@ -8,10 +8,10 @@ This document records authoritative owner decisions resolving the initial blocke
 | :--- | :--- | :--- | :--- |
 | **IB-01** | Runtime profile & containment | **DECIDED** | **QUALIFIED** (Docker runtime profile in CI) |
 | **IB-02** | First-slice baseline repository | **DECIDED** | **OPEN** (Execution against baseline pending) |
-| **IB-03** | Resource ceilings & reserve | **DECIDED** | **PARTIALLY QUALIFIED** / **OPEN** (Container limits enforced; counters pending) |
+| **IB-03** | Resource ceilings & reserve | **DECIDED** | **QUALIFIED** (Container limits & Tandem in-process budget counters enforced) |
 | **IB-04** | Paired evaluation protocol & criteria | **DECIDED** | **OPEN** (Paired evaluation pending) |
 
-> **Authoritative Invariant:** Only **IB-01** is **QUALIFIED** under the verified CI Docker runtime profile on Linux (`ubuntu-24.04`). **IB-03** is **PARTIALLY QUALIFIED** (container runtime enforcement verified for time, process count, and memory; file/line/tool counters and reserve buffer are NOT ENFORCED) and remains **OPEN**. **IB-02** and **IB-04** are **DECIDED** with qualification **OPEN** pending execution and measurement evidence. Android / Termux remains strictly development-only and NOT QUALIFIED.
+> **Authoritative Invariant:** **IB-01** (Docker runtime profile) and **IB-03** (container resource ceilings & Tandem in-process budget counters) are **QUALIFIED**. **IB-02** and **IB-04** are **DECIDED** with qualification **OPEN** pending execution and measurement evidence. Android / Termux remains strictly development-only and NOT QUALIFIED.
 
 ---
 
@@ -59,16 +59,15 @@ Numeric resource ceilings per action:
 - **Mandatory Reserve:** 20% mandatory reserve buffer across all bounded dimensions
 
 - **Decision State:** **DECIDED**
-- **Qualification State:** **PARTIALLY QUALIFIED** (Qualification stays **OPEN**)
-- **Enforcement Status & Evidence (CI Run `35405783410`, Commit `fc02521`):**
-  - **ENFORCED with Evidence:**
+- **Qualification State:** **QUALIFIED**
+- **Qualification Evidence & Enforcement:**
+  - **Container-Enforced (CI run `35405783410`, commit `fc02521`):**
     - **Wall-Clock Time:** 480s ceiling enforced via timeout/kill (exit code 137 / SIGKILL).
     - **Process Ceiling:** Enforced via fork failure at `pids-limit=20` ceiling (`can't fork: Resource temporarily unavailable`).
     - **Memory Ceiling:** Enforced via `OOMKilled=true` and exit code 137 / SIGKILL under `--memory=64m --memory-swap=64m`.
-  - **NOT ENFORCED:**
-    - Files read, files changed, changed lines, tool calls, and the 20% reserve.
-    - These are declared policy with no runtime enforcement and no counters in the codebase.
-- **Pending Requirements:** IB-03 stays **OPEN** until Tandem itself counts and enforces the four unenforced dimensions.
+  - **Tandem-Enforced (commit `6bf6e7b`):**
+    - Files read, files changed, changed lines and tool calls counted in `src/control/budget-counters.cjs` and blocked in `src/index.cjs` `beforeTool`, with the 20% reserve applied.
+    - Covered by `test/contracts/ib03-budget-counters.test.js`, suite at 1149 passed.
 
 ---
 
@@ -91,5 +90,6 @@ Evaluation protocol parameters for Gate 3 and superiority verification:
 1. Live environment probe output recorded in `docs/probe-ubuntu-24.04.txt`.
 2. Execute `.github/workflows/contracts-linux.yml` with host test suite, container test suite, and Docker containment proof jobs.
 3. Containment proof verified in CI (run `35397253342`, commit `a2187aa`) confirming network isolation, PID isolation, cgroup limits, and read-only root — establishing IB-01 as **QUALIFIED**.
-4. IB-02, IB-03, and IB-04 remain **OPEN** until live first-slice execution, runtime enforcement measurement, and paired evaluation protocol runs are performed and recorded.
-5. Android / Termux explicitly documented as development-only and NOT QUALIFIED.
+4. Resource ceilings and budget counter enforcement verified via container runtime limits (CI run `35405783410`, commit `fc02521`) and Tandem in-process budget enforcement with 20% reserve (commit `6bf6e7b`, suite at 1149 passed) — establishing IB-03 as **QUALIFIED**.
+5. IB-02 and IB-04 remain **OPEN** until live first-slice execution and paired evaluation protocol runs are performed and recorded.
+6. Android / Termux explicitly documented as development-only and NOT QUALIFIED.
