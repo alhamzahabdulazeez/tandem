@@ -30,6 +30,7 @@ const {
   evaluateFirstSlice,
   prepareFirstSlice
 } = require('../../bin/first-slice.cjs');
+const { Tandem } = require('../../src/index.cjs');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
@@ -290,6 +291,77 @@ module.exports = function run(t, group) {
       assert.strictEqual(evalRes.stage2, null, 'Stage 2 must not be executed when scope check fails');
     } finally {
       fs.rmSync(prep.workDir, { recursive: true, force: true });
+    }
+  });
+
+  t('beforeTool blocks write and edit to test/run.cjs when allow-list is src/gates/detect.cjs only (options)', () => {
+    const tandem = new Tandem(REPO_ROOT, 'test-model', {}, { allowedFiles: ['src/gates/detect.cjs'] });
+    tandem.sessionStart();
+
+    // 1. Attempt write to test/run.cjs
+    const writeVerdict = tandem.beforeTool({
+      tool: 'write',
+      name: 'write',
+      kind: 'write',
+      file_path: 'test/run.cjs',
+      content: '// unauthorized edit'
+    });
+    assert.strictEqual(writeVerdict.block, true, 'Write to test/run.cjs must be blocked');
+    assert.ok(writeVerdict.reason.includes('DISALLOWED_MUTATION'));
+    assert.ok(writeVerdict.reason.includes('test/run.cjs is outside allowed slice scope'));
+
+    // 2. Attempt edit to test/run.cjs
+    const editVerdict = tandem.beforeTool({
+      tool: 'edit',
+      name: 'edit',
+      kind: 'edit',
+      file_path: 'test/run.cjs',
+      old_string: 'foo',
+      new_string: 'bar'
+    });
+    assert.strictEqual(editVerdict.block, true, 'Edit to test/run.cjs must be blocked');
+    assert.ok(editVerdict.reason.includes('DISALLOWED_MUTATION'));
+
+    // 3. Attempt write to src/gates/detect.cjs (allowed)
+    const allowedVerdict = tandem.beforeTool({
+      tool: 'write',
+      name: 'write',
+      kind: 'write',
+      file_path: 'src/gates/detect.cjs',
+      content: '// allowed edit'
+    });
+    assert.strictEqual(allowedVerdict.block, false, 'Write to src/gates/detect.cjs must be permitted');
+  });
+
+  t('beforeTool blocks write to test/run.cjs when allow-list is set via TANDEM_ALLOWED_FILES env var', () => {
+    const prevEnv = process.env.TANDEM_ALLOWED_FILES;
+    process.env.TANDEM_ALLOWED_FILES = 'src/gates/detect.cjs';
+    try {
+      const tandem = new Tandem(REPO_ROOT, 'test-model');
+      tandem.sessionStart();
+
+      const verdict = tandem.beforeTool({
+        tool: 'write',
+        name: 'write',
+        kind: 'write',
+        file_path: 'test/run.cjs',
+        content: '// unauthorized edit'
+      });
+      assert.strictEqual(verdict.block, true, 'Write to test/run.cjs must be blocked via env allow-list');
+      assert.ok(verdict.reason.includes('DISALLOWED_MUTATION'));
+      assert.ok(verdict.reason.includes('test/run.cjs is outside allowed slice scope'));
+
+      const allowedVerdict = tandem.beforeTool({
+        tool: 'write',
+        name: 'write',
+        kind: 'write',
+        file_path: 'src/gates/detect.cjs',
+        content: '// allowed edit'
+      });
+      assert.strictEqual(allowedVerdict.block, false, 'Write to src/gates/detect.cjs must be permitted');
+    } finally {
+      if (prevEnv === undefined) delete process.env.TANDEM_ALLOWED_FILES;
+      else process.env.TANDEM_ALLOWED_FILES = prevEnv;
     }
   });
 

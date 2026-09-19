@@ -22,8 +22,22 @@ const BC = require('./control/budget-counters.cjs');
 
 const OFF = () => process.env.TANDEM_HOOKS === 'off' || process.env.TANDEM === 'off';
 
+function parseAllowedList(str) {
+  if (!str || typeof str !== 'string') return null;
+  const trimmed = str.trim();
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.map(String).map((s) => s.trim()).filter(Boolean);
+    } catch {
+      // Fall through to delimiter splitting
+    }
+  }
+  return trimmed.split(/[,;\s]+/).map((s) => s.trim()).filter(Boolean);
+}
+
 class Tandem {
-  constructor(cwd, modelId, ceilings) {
+  constructor(cwd, modelId, ceilings, options) {
     this.cwd = cwd;
     this.cfg = CFG.load(cwd);
     this.state = ST.load(cwd);
@@ -35,8 +49,33 @@ class Tandem {
     this.conventions = PROJ.loadConventions(cwd);
     this.injected = new Set();   // a skill body is injected at most once per session
     this.firstMutationSeen = false;
+    this.options = (typeof options === 'object' && options !== null) ? options : {};
     this.ceilings = Object.freeze({ ...BC.DEFAULT_CEILINGS, ...(ceilings || {}) });
     this.counters = BC.create(this.ceilings);
+  }
+
+  /** Resolve active slice allowed files allow-list from options, ceilings, cfg, or env */
+  getAllowedFiles() {
+    if (this.options && (this.options.allowedFiles || this.options.allowed_files)) {
+      const files = this.options.allowedFiles || this.options.allowed_files;
+      if (Array.isArray(files)) return files;
+      if (typeof files === 'string') return parseAllowedList(files);
+    }
+    if (this.ceilings && (this.ceilings.allowedFiles || this.ceilings.allowed_files)) {
+      const files = this.ceilings.allowedFiles || this.ceilings.allowed_files;
+      if (Array.isArray(files)) return files;
+      if (typeof files === 'string') return parseAllowedList(files);
+    }
+    if (this.cfg && (this.cfg.allowedFiles || this.cfg.allowed_files)) {
+      const files = this.cfg.allowedFiles || this.cfg.allowed_files;
+      if (Array.isArray(files)) return files;
+      if (typeof files === 'string') return parseAllowedList(files);
+    }
+    const envAllowed = process.env.TANDEM_ALLOWED_FILES;
+    if (envAllowed && typeof envAllowed === 'string' && envAllowed.trim().length > 0) {
+      return parseAllowedList(envAllowed);
+    }
+    return null;
   }
 
   /** Detected once per session and cached; detection must never run per edit. */
@@ -101,6 +140,9 @@ class Tandem {
   /** Enrich a neutral event with the facts the decision points need. */
   enrich(event) {
     const e = { ...event };
+    if (!e.file && (e.file_path || e.path || e.filePath)) {
+      e.file = e.file_path || e.path || e.filePath;
+    }
     if (e.file) {
       const rel = path.relative(this.cwd, path.resolve(this.cwd, e.file)).split(path.sep).join('/');
       e.file = rel;
@@ -123,6 +165,30 @@ class Tandem {
     if (OFF()) return { block: false, points: [] };
     const e = this.enrich(rawEvent);
     const mutating = e.kind === 'write' || e.kind === 'edit';
+
+    // Write-time mutation scope fencing: block any write/edit outside active slice allow-list
+    if (mutating) {
+      const allowed = this.getAllowedFiles();
+      if (allowed && allowed.length > 0) {
+        if (!e.file) {
+          return {
+            block: true,
+            points: [],
+            reason: 'DISALLOWED_MUTATION: no target file specified for mutation',
+          };
+        }
+        const normAllowed = allowed.map((f) =>
+          path.relative(this.cwd, path.resolve(this.cwd, f)).split(path.sep).join('/')
+        );
+        if (!normAllowed.includes(e.file)) {
+          return {
+            block: true,
+            points: [],
+            reason: `DISALLOWED_MUTATION: ${e.file} is outside allowed slice scope (${allowed.join(', ')})`,
+          };
+        }
+      }
+    }
 
     if (mutating && e.file && !CFG.inWorkingSet(e.file, this.cfg)) {
       return { block: true, points: [],

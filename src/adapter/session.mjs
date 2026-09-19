@@ -58,9 +58,12 @@ function kindOf(name) {
 function toEvent(ctx, toolCallsInTurn) {
   const name = ctx && ctx.toolCall && (ctx.toolCall.name || ctx.toolCall.toolName);
   return {
+    name,
+    tool: name,
     kind: kindOf(name),
     file: filePathOf(ctx && ctx.args),
     content: contentOf(ctx && ctx.args),
+    rawArgs: ctx && ctx.args,
     newImports: [],
     dependentCount: 0,
     toolCallsInTurn,
@@ -71,8 +74,8 @@ function toEvent(ctx, toolCallsInTurn) {
  * Build the three hook functions the host expects.
  * Returned object is spread straight into AgentOptions.
  */
-export function createHooks(cwd, modelId, log = (s) => process.stderr.write(s + '\n')) {
-  const tandem = new Tandem(cwd, modelId);
+export function createHooks(cwd, modelId, log = (s) => process.stderr.write(s + '\n'), ceilings, options) {
+  const tandem = new Tandem(cwd, modelId, ceilings, options);
   let toolCallsInTurn = 0;
 
   const drain = () => { for (const n of tandem.drainNotices()) log(n); };

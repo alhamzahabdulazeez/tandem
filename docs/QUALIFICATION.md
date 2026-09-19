@@ -49,6 +49,7 @@ This document records authoritative owner decisions resolving the initial blocke
   - `RUN-IB02-002` (`docs/FIRST_SLICE_RUN_002.md`): Live session via OmniRoute host adapter; proved budget enforcement works end-to-end on a live session (blocked at 17 tool calls, zero files changed, honest FAIL from the held-out grader).
   - `RUN-IB02-003` (`docs/FIRST_SLICE_RUN_003.md`): Live session with dynamic tool-call ceiling override (`TANDEM_CEILING_TOOLCALLS=60`); candidate completed 38 tool calls and changed 2 files; Stage 1 PASS (114/0), Stage 2 FAIL (3/2).
   - `RUN-IB02-004` (`docs/FIRST_SLICE_RUN_004.md`): Live session with corrected task text and active scope fencing; candidate completed 16 tool calls and generated passing `src/gates/detect.cjs` (5/5 on held-out spec), but also edited `test/run.cjs` (+28 lines); scope fencing fired with `DISALLOWED_MUTATION_TEST_TAMPERING` and failed closed.
+  - `RUN-IB02-005` (`docs/FIRST_SLICE_RUN_005.md`): Live session with write-time scope prevention; candidate attempted out-of-scope edit to `test/run.cjs` which was blocked at write-time; candidate adapted, modified only `src/gates/detect.cjs` (+1 line), and passed both Stage 1 (111/0) and Stage 2 held-out grader (5/0).
 - **Pending Requirements:** IB-02 remains **OPEN** until a candidate execution satisfies both Stage 1 baseline non-regression and Stage 2 held-out acceptance grader without manual code intervention or unauthorized scope mutation.
 
 ---
