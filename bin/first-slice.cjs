@@ -8,6 +8,8 @@
  * computes the pre-run cryptographic fingerprint, verifies the baseline
  * test suite is green (111 passed, 0 failed), and emits the slice manifest.
  *
+ * ARCHITECTURAL INVARIANT: Uses a held-out grader (bench/first-slice/spec.test.cjs)
+ * that is never placed in candidate context. Only src/gates/detect.cjs is mutable.
  * STRICT INVARIANT: This script does NOT invoke any LLM or model.
  */
 
@@ -20,6 +22,7 @@ const { execSync, spawnSync } = require('node:child_process');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const BASELINE_COMMIT = 'afa46cd68b1a2a616f5daff0ad2ba737ec9997d2';
 const SHORT_COMMIT = 'afa46cd';
+const HELD_OUT_SPEC_REL = 'bench/first-slice/spec.test.cjs';
 
 const FIRST_SLICE_MANIFEST = Object.freeze({
   $schema: 'https://json-schema.org/draft/2020-12/schema',
@@ -29,6 +32,8 @@ const FIRST_SLICE_MANIFEST = Object.freeze({
   blocker_id: 'IB-02',
   title: 'ESLint Detection in Gate Detection',
   specification_path: 'docs/FIRST_SLICE.md',
+  grader_type: 'HELD_OUT',
+  held_out_spec_path: HELD_OUT_SPEC_REL,
   baseline: {
     repository: 'https://github.com/alhamzahabdulazeez/tandem.git',
     commit: BASELINE_COMMIT,
@@ -48,7 +53,7 @@ const FIRST_SLICE_MANIFEST = Object.freeze({
         path: 'test/run.cjs',
         sha256: 'd675a1d938a6a49fce8b8875e2de281ee5aa5f5262a88b6735712ee0bfc33378',
         bytes: 29703,
-        role: 'MUTABLE_TEST'
+        role: 'IMMUTABLE_TEST'
       },
       {
         path: 'package.json',
@@ -60,13 +65,14 @@ const FIRST_SLICE_MANIFEST = Object.freeze({
   },
   scope: {
     allowed_files: [
-      'src/gates/detect.cjs',
-      'test/run.cjs'
+      'src/gates/detect.cjs'
     ],
     disallowed_files: [
+      'test/run.cjs',
       'package.json',
       'package-lock.json',
       'bin/**',
+      'bench/**',
       'src/core/**',
       'src/context/**',
       'src/adapter/**',
@@ -74,19 +80,34 @@ const FIRST_SLICE_MANIFEST = Object.freeze({
     ]
   },
   verification: {
-    recipe_command: 'node test/run.cjs',
+    stages: [
+      {
+        stage: 1,
+        name: 'non_regression',
+        recipe_command: 'node test/run.cjs',
+        expected_exit_code: 0,
+        expected_tests_passed: 111,
+        expected_tests_failed: 0
+      },
+      {
+        stage: 2,
+        name: 'held_out_acceptance',
+        recipe_command: 'node bench/first-slice/spec.test.cjs',
+        expected_exit_code: 0,
+        expected_tests_passed: 5,
+        expected_tests_failed: 0
+      }
+    ],
     timeout_ms: 10000,
     allow_network: false,
-    expected_exit_code: 0,
-    expected_tests_passed: 112,
-    expected_tests_failed: 0
+    expected_exit_code: 0
   },
   acceptance_predicates: [
     'P1: Baseline commit afa46cd is clean and passes 111/0 tests prior to candidate run',
     'P2: Syntax across all repository files is valid CommonJS under Node.js >=22',
-    'P3: No changes occur outside the allowed mutation scope (src/gates/detect.cjs and test/run.cjs)',
-    'P4: No new dependencies or network access introduced',
-    'P5: Post-mutation test suite passes exactly 112/0 tests with exit code 0 within 10,000ms'
+    'P3: Candidate mutations are strictly confined to src/gates/detect.cjs; test/run.cjs is untouched',
+    'P4: Stage 1 baseline regression test passes exactly 111/0 tests with exit code 0',
+    'P5: Stage 2 held-out grader passes exactly 5/0 tests with exit code 0 within timeout'
   ],
   baseline_failure_policy: {
     action: 'FAIL_CLOSED',
@@ -162,6 +183,34 @@ function verifyBaseline(targetDir, timeoutMs = 15000) {
     stdout,
     stderr,
     error: isGreen ? null : 'BASELINE_NON_GREEN'
+  };
+}
+
+function verifyHeldOutGrader(targetDir, specPath = path.join(REPO_ROOT, HELD_OUT_SPEC_REL), timeoutMs = 10000) {
+  const res = spawnSync(process.execPath, [specPath, targetDir], {
+    timeout: timeoutMs,
+    encoding: 'utf8',
+    env: { ...process.env }
+  });
+
+  const stdout = res.stdout || '';
+  const stderr = res.stderr || '';
+  const exitCode = res.status;
+
+  const match = stdout.match(/(\d+)\s+passed,\s+(\d+)\s+failed/);
+  const passed = match ? parseInt(match[1], 10) : 0;
+  const failed = match ? parseInt(match[2], 10) : (exitCode === 0 ? 0 : 1);
+
+  const isGreen = exitCode === 0 && passed === 5 && failed === 0;
+
+  return {
+    isGreen,
+    exitCode,
+    passed,
+    failed,
+    stdout,
+    stderr,
+    error: isGreen ? null : 'HELD_OUT_SPEC_FAILED'
   };
 }
 
@@ -247,13 +296,15 @@ if (require.main === module) {
     if (isJson) {
       console.log(JSON.stringify(result, null, 2));
     } else {
-      console.log('TANDEM IB-02 First-Slice Preparation\n');
+      console.log('TANDEM IB-02 First-Slice Preparation (Held-Out Grader)\n');
       console.log(`  Baseline Commit:  ${result.targetCommit} (${SHORT_COMMIT})`);
       console.log(`  Baseline Status:  GREEN (${result.baseline.passed} passed, ${result.baseline.failed} failed)`);
       console.log(`  Pre-run Digest:   ${result.preRunFingerprint.gitCommit}`);
       console.log(`  Task ID:          ${result.manifest.task_id}`);
       console.log(`  Allowed Files:    ${result.manifest.scope.allowed_files.join(', ')}`);
-      console.log(`  Native Recipe:    ${result.manifest.verification.recipe_command}`);
+      console.log(`  Grader Model:     HELD_OUT (${result.manifest.held_out_spec_path})`);
+      console.log(`  Stage 1 Command:  ${result.manifest.verification.stages[0].recipe_command}`);
+      console.log(`  Stage 2 Command:  ${result.manifest.verification.stages[1].recipe_command}`);
       console.log('\nSlice manifest ready for execution. (Zero models invoked)');
     }
   } catch (err) {
@@ -271,9 +322,11 @@ module.exports = {
   FIRST_SLICE_MANIFEST,
   BASELINE_COMMIT,
   SHORT_COMMIT,
+  HELD_OUT_SPEC_REL,
   getSliceManifest,
   computeFileDigest,
   computePreRunFingerprint,
   verifyBaseline,
+  verifyHeldOutGrader,
   prepareFirstSlice
 };

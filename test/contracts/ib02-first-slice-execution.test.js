@@ -3,12 +3,13 @@
  * test/contracts/ib02-first-slice-execution.test.js
  *
  * Contract test suite for IB-02 First-Slice execution preparation:
- *   1. Manifest shape and schema compliance
- *   2. Scope boundary constraints (mutable vs immutable files)
+ *   1. Manifest shape and schema compliance (held-out grader architecture)
+ *   2. Scope boundary constraints (only src/gates/detect.cjs mutable, test/run.cjs disallowed)
  *   3. Pre-run fingerprinting & SHA-256 digest computation
  *   4. Baseline-green verification (111 passed / 0 failed at afa46cd)
- *   5. Fail-closed policy on non-green baseline
- *   6. Zero-model invocation and qualification status invariants
+ *   5. Held-out grader verification (5 test cases on ESLint detection)
+ *   6. Fail-closed policy on non-green baseline or broken held-out spec
+ *   7. Zero-model invocation and qualification status invariants
  */
 
 const assert = require('node:assert');
@@ -19,19 +20,21 @@ const {
   FIRST_SLICE_MANIFEST,
   BASELINE_COMMIT,
   SHORT_COMMIT,
+  HELD_OUT_SPEC_REL,
   getSliceManifest,
   computeFileDigest,
   computePreRunFingerprint,
   verifyBaseline,
+  verifyHeldOutGrader,
   prepareFirstSlice
 } = require('../../bin/first-slice.cjs');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 module.exports = function run(t, group) {
-  group('IB-02 First-Slice: Manifest Shape & Schema Invariants');
+  group('IB-02 First-Slice: Manifest Shape & Held-Out Grader Invariants');
 
-  t('manifest has required schema, task_id, and blocker_id fields', () => {
+  t('manifest has required schema, task_id, blocker_id, and held-out grader fields', () => {
     const manifest = getSliceManifest();
     assert.strictEqual(manifest.document_type, 'FIRST_SLICE_MANIFEST_V1');
     assert.strictEqual(manifest.schema_version, '1.0.0');
@@ -39,6 +42,8 @@ module.exports = function run(t, group) {
     assert.strictEqual(manifest.blocker_id, 'IB-02');
     assert.strictEqual(manifest.title, 'ESLint Detection in Gate Detection');
     assert.strictEqual(manifest.specification_path, 'docs/FIRST_SLICE.md');
+    assert.strictEqual(manifest.grader_type, 'HELD_OUT');
+    assert.strictEqual(manifest.held_out_spec_path, 'bench/first-slice/spec.test.cjs');
   });
 
   t('baseline anchor matches commit afa46cd and 111/0 expected tests', () => {
@@ -64,7 +69,7 @@ module.exports = function run(t, group) {
 
     const testFile = manifest.baseline.files.find(f => f.path === 'test/run.cjs');
     assert.ok(testFile);
-    assert.strictEqual(testFile.role, 'MUTABLE_TEST');
+    assert.strictEqual(testFile.role, 'IMMUTABLE_TEST');
     assert.strictEqual(testFile.sha256, 'd675a1d938a6a49fce8b8875e2de281ee5aa5f5262a88b6735712ee0bfc33378');
     assert.strictEqual(testFile.bytes, 29703);
 
@@ -73,24 +78,40 @@ module.exports = function run(t, group) {
     assert.strictEqual(pkgFile.role, 'IMMUTABLE_DESCRIPTOR');
   });
 
-  t('scope strictly bounds mutable files and forbids package.json / core modification', () => {
+  t('scope strictly bounds mutable files to src/gates/detect.cjs only and disallows test/run.cjs', () => {
     const manifest = getSliceManifest();
     assert.deepStrictEqual(manifest.scope.allowed_files, [
-      'src/gates/detect.cjs',
-      'test/run.cjs'
+      'src/gates/detect.cjs'
     ]);
+    assert.ok(manifest.scope.disallowed_files.includes('test/run.cjs'), 'test/run.cjs must be disallowed');
     assert.ok(manifest.scope.disallowed_files.includes('package.json'));
+    assert.ok(manifest.scope.disallowed_files.includes('bench/**'));
     assert.ok(manifest.scope.disallowed_files.includes('src/core/**'));
     assert.ok(manifest.scope.disallowed_files.includes('src/index.cjs'));
   });
 
-  t('verification recipe specifies zero-network execution and 112 expected passes', () => {
+  t('verification recipe specifies two-stage execution with held-out grader', () => {
     const manifest = getSliceManifest();
-    assert.strictEqual(manifest.verification.recipe_command, 'node test/run.cjs');
+    assert.ok(Array.isArray(manifest.verification.stages));
+    assert.strictEqual(manifest.verification.stages.length, 2);
+
+    const stage1 = manifest.verification.stages[0];
+    assert.strictEqual(stage1.stage, 1);
+    assert.strictEqual(stage1.name, 'non_regression');
+    assert.strictEqual(stage1.recipe_command, 'node test/run.cjs');
+    assert.strictEqual(stage1.expected_exit_code, 0);
+    assert.strictEqual(stage1.expected_tests_passed, 111);
+    assert.strictEqual(stage1.expected_tests_failed, 0);
+
+    const stage2 = manifest.verification.stages[1];
+    assert.strictEqual(stage2.stage, 2);
+    assert.strictEqual(stage2.name, 'held_out_acceptance');
+    assert.strictEqual(stage2.recipe_command, 'node bench/first-slice/spec.test.cjs');
+    assert.strictEqual(stage2.expected_exit_code, 0);
+    assert.strictEqual(stage2.expected_tests_passed, 5);
+    assert.strictEqual(stage2.expected_tests_failed, 0);
+
     assert.strictEqual(manifest.verification.allow_network, false);
-    assert.strictEqual(manifest.verification.expected_exit_code, 0);
-    assert.strictEqual(manifest.verification.expected_tests_passed, 112);
-    assert.strictEqual(manifest.verification.expected_tests_failed, 0);
   });
 
   group('IB-02 First-Slice: Cryptographic Fingerprinting');
@@ -157,6 +178,33 @@ module.exports = function run(t, group) {
     }
   });
 
+  t('verifyHeldOutGrader correctly evaluates modified vs unmodified targets', () => {
+    // 1. Unmodified target (baseline) fails held-out spec because eslint detection is not implemented
+    const baselineRes = verifyHeldOutGrader(REPO_ROOT);
+    assert.strictEqual(baselineRes.isGreen, false, 'Unmodified baseline must fail held-out grader');
+    assert.strictEqual(baselineRes.failed > 0, true);
+
+    // 2. Mock directory with implemented eslint detection passes held-out spec
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-mock-green-'));
+    try {
+      fs.mkdirSync(path.join(tmpDir, 'src', 'gates'), { recursive: true });
+      const origSrc = fs.readFileSync(path.join(REPO_ROOT, 'src', 'gates', 'detect.cjs'), 'utf8');
+      const modifiedSrc = origSrc.replace(
+        "if (hasDep(m, '@biomejs/biome')) return { available: true, command: 'npx biome check --reporter=json .', reason: null };",
+        "if (hasDep(m, '@biomejs/biome')) return { available: true, command: 'npx biome check --reporter=json .', reason: null };\n  if (hasDep(m, 'eslint')) return { available: true, command: 'npx eslint --format json .', reason: null };"
+      );
+      fs.writeFileSync(path.join(tmpDir, 'src', 'gates', 'detect.cjs'), modifiedSrc, 'utf8');
+
+      const mockRes = verifyHeldOutGrader(tmpDir);
+      assert.strictEqual(mockRes.isGreen, true, 'Implemented candidate must pass held-out grader');
+      assert.strictEqual(mockRes.passed, 5);
+      assert.strictEqual(mockRes.failed, 0);
+      assert.strictEqual(mockRes.exitCode, 0);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   t('prepareFirstSlice succeeds against clean afa46cd baseline checkout', () => {
     const result = prepareFirstSlice();
     assert.strictEqual(result.ok, true);
@@ -167,6 +215,7 @@ module.exports = function run(t, group) {
     assert.ok(result.preRunFingerprint);
     assert.strictEqual(result.preRunFingerprint.gitCommit, BASELINE_COMMIT);
     assert.strictEqual(result.manifest.task_id, 'TASK-IB02-ESLINT-DETECT');
+    assert.strictEqual(result.manifest.grader_type, 'HELD_OUT');
   });
 
   group('IB-02 Qualification Status Invariants');
@@ -183,11 +232,14 @@ module.exports = function run(t, group) {
     assert.ok(!ib02SummaryLine.includes('**QUALIFIED**'), 'IB-02 must NOT be marked QUALIFIED');
   });
 
-  t('docs/FIRST_SLICE.md records frozen specification and OPEN qualification state', () => {
+  t('docs/FIRST_SLICE.md records frozen specification, held-out grader, and OPEN qualification state', () => {
     const specDoc = fs.readFileSync(path.join(REPO_ROOT, 'docs', 'FIRST_SLICE.md'), 'utf8');
     assert.ok(specDoc.includes('FIRST_SLICE_SPEC_V1'));
     assert.ok(specDoc.includes('FROZEN'));
     assert.ok(specDoc.includes('Qualification State:** OPEN'));
     assert.ok(specDoc.includes('TASK-IB02-ESLINT-DETECT'));
+    assert.ok(specDoc.includes('bench/first-slice/spec.test.cjs'));
+    assert.ok(specDoc.includes('test/run.cjs'));
+    assert.ok(specDoc.includes('Held-Out Grader'));
   });
 };
