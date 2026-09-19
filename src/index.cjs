@@ -18,11 +18,12 @@ const detect = require('./gates/detect.cjs');
 const gates = require('./gates/run.cjs');
 const repair = require('./gates/repair.cjs');
 const P = require('./gates/parse.cjs');
+const BC = require('./control/budget-counters.cjs');
 
 const OFF = () => process.env.TANDEM_HOOKS === 'off' || process.env.TANDEM === 'off';
 
 class Tandem {
-  constructor(cwd, modelId) {
+  constructor(cwd, modelId, ceilings) {
     this.cwd = cwd;
     this.cfg = CFG.load(cwd);
     this.state = ST.load(cwd);
@@ -33,6 +34,9 @@ class Tandem {
     this.commands = PROJ.loadCommands(cwd);
     this.conventions = PROJ.loadConventions(cwd);
     this.injected = new Set();   // a skill body is injected at most once per session
+    this.firstMutationSeen = false;
+    this.ceilings = Object.freeze({ ...BC.DEFAULT_CEILINGS, ...(ceilings || {}) });
+    this.counters = BC.create(this.ceilings);
   }
 
   /** Detected once per session and cached; detection must never run per edit. */
@@ -66,6 +70,7 @@ class Tandem {
     this.state.seenImports = [];
     this.state.disabled = {};
     this.state.gates = null;
+    this.counters = BC.create(this.ceilings);
     this.save();
     const parts = [RULES];
     if (this.conventions) parts.push('Project conventions:\n' + this.conventions);
@@ -122,6 +127,56 @@ class Tandem {
     if (mutating && e.file && !CFG.inWorkingSet(e.file, this.cfg)) {
       return { block: true, points: [],
         reason: `${e.file} is outside the working set (${this.cfg.workingSet.join(', ')}). Write there instead.` };
+    }
+
+    if (!this.counters) {
+      this.counters = BC.create(this.ceilings);
+    }
+
+    // IB-03 Budget Dimensions Tracking
+    // 1. Tool calls
+    const toolName = rawEvent.name || rawEvent.tool || rawEvent.toolName || e.name || e.tool || e.kind || 'unknown';
+    this.counters = BC.countToolCall(this.counters, toolName);
+
+    // 2. Files read (unique paths)
+    if (e.kind === 'read' && e.file) {
+      this.counters = BC.countRead(this.counters, e.file);
+    }
+
+    // 3. Files changed & lines changed
+    if (mutating && e.file) {
+      let added = 0;
+      let removed = 0;
+      if (rawEvent.addedLines != null || rawEvent.removedLines != null || e.addedLines != null || e.removedLines != null) {
+        added = Number(rawEvent.addedLines ?? e.addedLines) || 0;
+        removed = Number(rawEvent.removedLines ?? e.removedLines) || 0;
+      } else if (rawEvent.new_string != null || rawEvent.old_string != null || e.new_string != null || e.old_string != null) {
+        const newStr = rawEvent.new_string ?? e.new_string;
+        const oldStr = rawEvent.old_string ?? e.old_string;
+        added = newStr ? String(newStr).split('\n').length : 0;
+        removed = oldStr ? String(oldStr).split('\n').length : 0;
+      } else if (rawEvent.content != null || e.content != null) {
+        const cnt = rawEvent.content ?? e.content;
+        added = String(cnt).split('\n').length;
+        removed = 0;
+      }
+      this.counters = BC.countChange(this.counters, e.file, added, removed);
+    }
+
+    // Check budget limits across dimensions
+    const budgetStatus = BC.check(this.counters, this.ceilings);
+    if (!budgetStatus.within) {
+      const dim = budgetStatus.exceeded[0];
+      const count = budgetStatus.counts[dim];
+      const ceiling = budgetStatus.ceilings[dim];
+      const eff = budgetStatus.effective[dim];
+      const isHard = budgetStatus.hardStops && budgetStatus.hardStops.includes(dim);
+      const limitDesc = isHard ? 'hard total ceiling' : 'effective limit (20% reserve)';
+      return {
+        block: true,
+        points: [],
+        reason: `IB-03 budget exceeded on ${dim}: count ${count} exceeds ${limitDesc} (ceiling ${ceiling}, effective ${eff})`,
+      };
     }
 
     const points = DP.pointsFor(e, { density: this.density, dependentThreshold: this.cfg.dependentThreshold });
@@ -226,4 +281,4 @@ class Tandem {
   drainNotices() { const n = this.notices; this.notices = []; return n; }
 }
 
-module.exports = { Tandem, RULES, DECISION_POINTS: DP.DESCRIPTIONS };
+module.exports = { Tandem, RULES, DECISION_POINTS: DP.DESCRIPTIONS, BUDGET_COUNTERS: BC };
