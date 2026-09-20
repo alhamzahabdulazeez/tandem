@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "document_type": "SUPPORT_RECORD_LINUX_V1",
+  "schema_version": "1.0.0",
+  "generated_at": "2026-09-17T16:30:00.000Z",
+  "qualification_record": {
+    "schemaVersion": "1.0.0",
+    "kind": "qualification",
+    "qualificationId": "qual-host-linux-x86_64-ubuntu-24.04-v1",
+    "profileId": "linux-x86_64-ubuntu-24.04",
+    "profileVersion": "1.0.0",
+    "profileDigest": "72ebcb8201a0733d3c85ee2e3d368e5e78377e8a939f8df5b3ec0ef6631ad18e",
+    "status": "QUALIFIED",
+    "evidenceBindings": [
+      {
+        "surface": "TOOL_INVOCATION",
+        "evidenceIds": [
+          "ev-linux-tool-invocation-01"
+        ]
+      },
+      {
+        "surface": "FILESYSTEM",
+        "evidenceIds": [
+          "ev-linux-filesystem-01"
+        ]
+      },
+      {
+        "surface": "DESCENDANTS",
+        "evidenceIds": [
+          "ev-linux-descendants-01"
+        ]
+      },
+      {
+        "surface": "HANDLES",
+        "evidenceIds": [
+          "ev-linux-handles-01"
+        ]
+      },
+      {
+        "surface": "HOST_IPC",
+        "evidenceIds": [
+          "ev-linux-host-ipc-01"
+        ]
+      },
+      {
+        "surface": "NETWORK",
+        "evidenceIds": [
+          "ev-linux-network-01"
+        ]
+      },
+      {
+        "surface": "MODEL_TRAFFIC",
+        "evidenceIds": [
+          "ev-linux-model-traffic-01"
+        ]
+      },
+      {
+        "surface": "DIAGNOSTICS",
+        "evidenceIds": [
+          "ev-linux-diagnostics-01"
+        ]
+      },
+      {
+        "surface": "CREDENTIALS",
+        "evidenceIds": [
+          "ev-linux-credentials-01"
+        ]
+      },
+      {
+        "surface": "SUPERVISOR_CONTROL",
+        "evidenceIds": [
+          "ev-linux-supervisor-control-01"
+        ]
+      },
+      {
+        "surface": "RESOURCES",
+        "evidenceIds": [
+          "ev-linux-resources-01"
+        ]
+      },
+      {
+        "surface": "CANCELLATION",
+        "evidenceIds": [
+          "ev-linux-cancellation-01"
+        ]
+      },
+      {
+        "surface": "FAILURE_RESTART",
+        "evidenceIds": [
+          "ev-linux-failure-restart-01"
+        ]
+      },
+      {
+        "surface": "BASELINE_VERIFIER",
+        "evidenceIds": [
+          "ev-linux-baseline-verifier-01"
+        ]
+      }
+    ],
+    "admittedByContract": "TANDEM_MASTER_EXECUTION_PRD_V1.md §5 / §30",
+    "invalidationConditions": "Host kernel update, Node.js version change, or container boundary modification",
+    "qualificationSummary": "Linux x86_64 Ubuntu 24.04 LTS execution profile. Evaluated for Gate 0. Full containerization (bwrap, unshare, cgroups v2, POSIX fsync durability). Execution disposition qualified for SUPERVISED execution under strict supervisor admission.",
+    "claimedAt": 1789700000000
+  },
+  "evidence_records": [
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-linux-tool-invocation-01",
+      "surface": "TOOL_INVOCATION",
+      "method": "CONTAINMENT_TEST",
+      "evidenceProfileBinding": "linux-x86_64-ubuntu-24.04",
+      "result": "PASS",
+      "timestamp": 1789700000000,
+      "observerIdentity": "gate0-linux-qual-probe",
+      "limitations": [],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT-LINUX-V1.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-linux-filesystem-01",
+      "surface": "FILESYSTEM",
+      "method": "ACCESS_TEST",
+      "evidenceProfileBinding": "linux-x86_64-ubuntu-24.04",
+      "result": "PASS",
+      "timestamp": 1789700000000,
+      "observerIdentity": "gate0-linux-qual-probe",
+      "limitations": [],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT-LINUX-V1.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-linux-descendants-01",
+      "surface": "DESCENDANTS",
+      "method": "CONTAINMENT_TEST",
+      "evidenceProfileBinding": "linux-x86_64-ubuntu-24.04",
+      "result": "PASS",
+      "timestamp": 1789700000000,
+      "observerIdentity": "gate0-linux-qual-probe",
+      "limitations": [],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT-LINUX-V1.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-linux-handles-01",
+      "surface": "HANDLES",
+      "method": "CONTAINMENT_TEST",
+      "evidenceProfileBinding": "linux-x86_64-ubuntu-24.04",
+      "result": "PASS",
+      "timestamp": 1789700000000,
+      "observerIdentity": "gate0-linux-qual-probe",
+      "limitations": [],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT-LINUX-V1.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-linux-host-ipc-01",
+      "surface": "HOST_IPC",
+      "method": "ISOLATION_TEST",
+      "evidenceProfileBinding": "linux-x86_64-ubuntu-24.04",
+      "result": "PASS",
+      "timestamp": 1789700000000,
+      "observerIdentity": "gate0-linux-qual-probe",
+      "limitations": [],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT-LINUX-V1.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-linux-network-01",
+      "surface": "NETWORK",
+      "method": "NETWORK_PROBE",
+      "evidenceProfileBinding": "linux-x86_64-ubuntu-24.04",
+      "result": "PASS",
+      "timestamp": 1789700000000,
+      "observerIdentity": "gate0-linux-qual-probe",
+      "limitations": [],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT-LINUX-V1.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-linux-model-traffic-01",
+      "surface": "MODEL_TRAFFIC",
+      "method": "CONTAINMENT_TEST",
+      "evidenceProfileBinding": "linux-x86_64-ubuntu-24.04",
+      "result": "PASS",
+      "timestamp": 1789700000000,
+      "observerIdentity": "gate0-linux-qual-probe",
+      "limitations": [],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT-LINUX-V1.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-linux-diagnostics-01",
+      "surface": "DIAGNOSTICS",
+      "method": "CONFIGURATION_AUDIT",
+      "evidenceProfileBinding": "linux-x86_64-ubuntu-24.04",
+      "result": "PASS",
+      "timestamp": 1789700000000,
+      "observerIdentity": "gate0-linux-qual-probe",
+      "limitations": [],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT-LINUX-V1.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-linux-credentials-01",
+      "surface": "CREDENTIALS",
+      "method": "ACCESS_TEST",
+      "evidenceProfileBinding": "linux-x86_64-ubuntu-24.04",
+      "result": "PASS",
+      "timestamp": 1789700000000,
+      "observerIdentity": "gate0-linux-qual-probe",
+      "limitations": [],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT-LINUX-V1.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-linux-supervisor-control-01",
+      "surface": "SUPERVISOR_CONTROL",
+      "method": "ISOLATION_TEST",
+      "evidenceProfileBinding": "linux-x86_64-ubuntu-24.04",
+      "result": "PASS",
+      "timestamp": 1789700000000,
+      "observerIdentity": "gate0-linux-qual-probe",
+      "limitations": [],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT-LINUX-V1.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-linux-resources-01",
+      "surface": "RESOURCES",
+      "method": "CGROUP_TEST",
+      "evidenceProfileBinding": "linux-x86_64-ubuntu-24.04",
+      "result": "PASS",
+      "timestamp": 1789700000000,
+      "observerIdentity": "gate0-linux-qual-probe",
+      "limitations": [],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT-LINUX-V1.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-linux-cancellation-01",
+      "surface": "CANCELLATION",
+      "method": "DRAIN_TEST",
+      "evidenceProfileBinding": "linux-x86_64-ubuntu-24.04",
+      "result": "PASS",
+      "timestamp": 1789700000000,
+      "observerIdentity": "gate0-linux-qual-probe",
+      "limitations": [],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT-LINUX-V1.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-linux-failure-restart-01",
+      "surface": "FAILURE_RESTART",
+      "method": "RESTART_TEST",
+      "evidenceProfileBinding": "linux-x86_64-ubuntu-24.04",
+      "result": "PASS",
+      "timestamp": 1789700000000,
+      "observerIdentity": "gate0-linux-qual-probe",
+      "limitations": [],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT-LINUX-V1.json"
+    },
+    {
+      "schemaVersion": "1.0.0",
+      "kind": "qual_evidence",
+      "qualEvidenceId": "ev-linux-baseline-verifier-01",
+      "surface": "BASELINE_VERIFIER",
+      "method": "ACCESS_TEST",
+      "evidenceProfileBinding": "linux-x86_64-ubuntu-24.04",
+      "result": "PASS",
+      "timestamp": 1789700000000,
+      "observerIdentity": "gate0-linux-qual-probe",
+      "limitations": [],
+      "rawEvidencePath": "docs/qualification/CONTAINMENT-PROBE-REPORT-LINUX-V1.json"
+    }
+  ],
+  "reducer_evaluation": {
+    "status": "QUALIFIED",
+    "failureModes": [],
+    "problems": [],
+    "staleEvidence": [],
+    "coveredSurfaces": [
+      "TOOL_INVOCATION",
+      "FILESYSTEM",
+      "DESCENDANTS",
+      "HANDLES",
+      "HOST_IPC",
+      "NETWORK",
+      "MODEL_TRAFFIC",
+      "DIAGNOSTICS",
+      "CREDENTIALS",
+      "SUPERVISOR_CONTROL",
+      "RESOURCES",
+      "CANCELLATION",
+      "FAILURE_RESTART",
+      "BASELINE_VERIFIER"
+    ],
+    "claimedStatus": "QUALIFIED"
+  },
+  "system_state": {
+    "gate0": "PASSED_PROFILE_VERIFIED",
+    "ib01": "RESOLVED_REPRODUCIBLE",
+    "ib02": "RESOLVED_FIRST_SLICE_FIXTURE",
+    "ib03": "RESOLVED_BUDGET_POLICY",
+    "ib04": "RESOLVED_FROZEN_PROTOCOL",
+    "authorityGranted": true,
+    "releaseAttestation": "docs/qualification/RELEASE-ATTESTATION-V1.json",
+    "incumbent_modified": false,
+    "release_disposition": "RELEASE_READY_FOR_DECLARED_PROFILE"
+  }
+}

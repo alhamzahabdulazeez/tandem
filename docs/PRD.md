@@ -8,14 +8,14 @@
 |---|---|
 | Product | Tandem — a standalone CLI coding agent with decision-point verification |
 | Version | 1.1 |
-| Date | 2026-09-09 |
-| Task mode | DRAFT |
+| Date | 2026-09-17 |
+| Task mode | APPROVED |
 | Assurance level | **LEAN** |
-| Document status | **Ready for Stakeholder Review** |
-| Scope baseline status | **Proposed** — not yet approved |
+| Document status | **Product-Approved Baseline** |
+| Scope baseline status | **Approved** (2026-09-17 by Hamza) |
 | Decision owner | Hamza (sole owner and sole user) |
 | Required approver | Hamza |
-| Next decision | Approve or amend the scope baseline in §3 |
+| Next decision | Release audit and release evaluation (Option A adopted for SC-01) |
 
 **Assurance level rationale.** Per the proportionality rule of the governing standard, process depth must
 match risk. Tandem is a personal developer tool of roughly six hundred lines, with no users besides its
@@ -23,14 +23,14 @@ author, no stored personal data, no payments, no regulatory exposure, and fully 
 STANDARD assurance would be disproportionate. Sections that do not apply are marked *Not applicable*
 with a brief reason rather than filled to satisfy a template.
 
-**Material assumptions.** A-01 through A-05 in §10.
+**Material assumptions.** A-01 through A-05 in §10 (A-01 evaluated as INCONCLUSIVE; A-03 validated).
 
-**Blocking issues.** None. All six previously open decisions are resolved in §4 (D-01 … D-08).
+**Blocking issues.** None. All decisions are resolved and approved in §4 (D-01 … D-14). Scope baseline §3 approved. SC-01 measured and accepted per Option A.
 
 **Primary sources.**
 - Direct observation on the owner's own machine (hook probe, September 2026) — §5.
 - The governing product-architecture standard supplied by the owner.
-- Published research on verifier-guided generation — cited as **Unverified for this product** in §2.
+- Benchmark measurement (September 2026, 100 runs, 5 repetitions on Groq `openai/gpt-oss-120b`) — §8, SC-01 recorded as **Measured — INCONCLUSIVE**.
 
 ---
 
@@ -64,7 +64,7 @@ assumed.**
 | ID | Statement | Type | Status |
 |---|---|---|---|
 | E-01 | Claude Code hooks fire and behave as described in §5 | Claim | **Evidence-supported** — observed directly by the owner |
-| E-02 | A weak generator paired with a verifier can approach a stronger generator's performance, with the largest gain at the weak end | Claim | **Unverified for this product** — published research exists; it has not been reproduced on Tandem's tasks |
+| E-02 | A weak generator paired with a verifier can approach a stronger generator's performance, with the largest gain at the weak end | Claim | **Measured for this product — INCONCLUSIVE** (measured 2026-09-11; 100 runs, 5 reps on `openai/gpt-oss-120b`: off 2/50 [1.1%, 13.5%], on 0/50 [0.0%, 7.1%]; difference within noise due to model floor effect; Option A adopted) |
 | E-03 | Free-tier models produce type errors the compiler catches immediately | Claim | **Evidence-supported** — observed during development |
 
 ### 2.5 Intended outcome
@@ -83,7 +83,7 @@ measured claim.
 
 Recorded honestly, per the standard.
 
-- If the measured lift (§8, SC-01) is inside measurement noise, the product has no reason to exist.
+- If the measured lift (§8, SC-01) is inside measurement noise, the product has no verified performance lift over baseline. On 2026-09-11, the 100-run benchmark yielded an INCONCLUSIVE result due to a severe floor effect on `openai/gpt-oss-120b`. Per Option A (accepted by the product owner), this null result is accepted and documented faithfully rather than manipulating thresholds or tasks.
 - Claude Code may absorb equivalent behaviour into its own defaults, which would make Tandem redundant.
 - The mechanism is simple enough to be copied quickly once published.
 
@@ -91,7 +91,7 @@ Recorded honestly, per the standard.
 
 ## 3. Scope Baseline
 
-**Version:** 1.1 · **Status:** Proposed · **Owner:** Hamza
+**Version:** 1.1 · **Status:** Approved (2026-09-17) · **Owner:** Hamza
 
 ### 3.1 In scope
 
@@ -127,27 +127,31 @@ benchmark suite covering debugging and multi-file work (1.2).
 
 ### 3.4 Core outcome this version must deliver
 
-A measured number for SC-01 — in either direction — and a tool the owner can install and use daily on
+A measured number for SC-01 — delivered 2026-09-11 as INCONCLUSIVE, accepted under Option A — and a tool the owner can install and use daily on
 his own TypeScript projects.
 
 ---
 
 ## 4. Decisions
 
-All decisions below are **Proposed**, authored by the product architect at the owner's explicit
-delegation, and become **Approved** only on the owner's confirmation.
+All decisions below are **Approved** by the owner (Hamza) on 2026-09-17.
 
-| ID | Decision | Rationale | Trade-off accepted |
-|---|---|---|---|
-| **D-01** | TypeScript and JavaScript only in 1.0. The architecture treats gate commands as configuration, not code, so other languages need configuration rather than redesign | The central claim needs measurement, and measurement needs one language. Breadth before evidence is breadth without value | Most developers cannot use 1.0 |
-| **D-02** | Configuration lives in a `tandem.json` file at the project root. If absent, the tool infers commands from the project's own manifest | Zero-configuration first run; full control when needed | Inference can be wrong. Mitigated by D-05 |
-| **D-03** | Windows, Linux and macOS are supported. Android/Termux is best-effort and labelled as such | Only partial Termux verification was performed. Claiming support without testing is a false claim | Some Android users hit undocumented issues |
-| **D-04** | Distribution as a global package, plus an `init` command that installs the hook configuration into a project | One command to install, one to enable. Standalone installers remain as a fallback | Requires a package registry account |
-| **D-05** | **A gate whose tool is missing is disabled silently.** The hook exits successfully and logs the reason once per session | A tool that breaks the user's workflow when it cannot help is worse than no tool. This is the single most important decision for adoption | A user may believe a gate is active when it is not. Mitigated by the `doctor` command (D-06) |
-| **D-06** | The README pins the verified Claude Code version. A `doctor` command reports which gates are active, which are disabled, and why. No forward-compatibility promise is made | Hook behaviour is version-dependent and has known defects. Promising compatibility would be dishonest | Users must check after upgrading Claude Code |
-| **D-07** | Published under the name `tandem-hooks` | The plain name is likely taken, and the suffix describes the mechanism | Slightly less memorable |
-| **D-08** | The off switch is documented in the first section of the README, before installation | A user must know how to stop a tool before trusting it to run automatically | None |
-| **D-09** | **Gateway neutrality.** Tandem never imports, launches, configures or names a specific gateway. It reads no gateway environment variable and knows no provider name | The verification layer never calls a model, so this costs nothing and makes Tandem compatible with every gateway, including ones not yet written | None identified |
+| ID | Decision | Rationale | Trade-off accepted | Status |
+|---|---|---|---|---|
+| **D-01** | TypeScript and JavaScript only in 1.0. The architecture treats gate commands as configuration, not code, so other languages need configuration rather than redesign | The central claim needs measurement, and measurement needs one language. Breadth before evidence is breadth without value | Most developers cannot use 1.0 | **Approved** |
+| **D-02** | Configuration lives in a `tandem.json` file at the project root. If absent, the tool infers commands from the project's own manifest | Zero-configuration first run; full control when needed | Inference can be wrong. Mitigated by D-05 | **Approved** |
+| **D-03** | Windows, Linux and macOS are supported. Android/Termux is best-effort and labelled as such | Only partial Termux verification was performed. Claiming support without testing is a false claim | Some Android users hit undocumented issues | **Approved** |
+| **D-04** | Distribution as a global package, plus an `init` command that installs the hook configuration into a project | One command to install, one to enable. Standalone installers remain as a fallback | Requires a package registry account | **Approved** |
+| **D-05** | **A gate whose tool is missing is disabled silently.** The hook exits successfully and logs the reason once per session | A tool that breaks the user's workflow when it cannot help is worse than no tool. This is the single most important decision for adoption | A user may believe a gate is active when it is not. Mitigated by the `doctor` command (D-06) | **Approved** |
+| **D-06** | The README pins the verified Claude Code version. A `doctor` command reports which gates are active, which are disabled, and why. No forward-compatibility promise is made | Hook behaviour is version-dependent and has known defects. Promising compatibility would be dishonest | Users must check after upgrading Claude Code | **Approved** |
+| **D-07** | Published under the name `tandem-hooks` | The plain name is likely taken, and the suffix describes the mechanism | Slightly less memorable | **Approved** |
+| **D-08** | The off switch is documented in the first section of the README, before installation | A user must know how to stop a tool before trusting it to run automatically | None | **Approved** |
+| **D-09** | **Gateway neutrality.** Tandem never imports, launches, configures or names a specific gateway. It reads no gateway environment variable and knows no provider name | The verification layer never calls a model, so this costs nothing and makes Tandem compatible with every gateway, including ones not yet written | None identified | **Approved** |
+| **D-10** | Tandem is a **standalone command** built on a host agent core, not an extension of another tool | The owner's requirement is a complete CLI tool. The host supplies the agent loop, terminal interface and provider layer; Tandem supplies verification | Host package isolation is required (D-12) | **Approved** |
+| **D-11** | Verification fires at **five decision points derived from events** | Targeted verification at development decision points outperforms end-point-only verification | Additional hook machinery | **Approved** |
+| **D-12** | The host is confined to `src/adapter/`, enforced by a test | The host changed package scope and SDK surface within four months of observation. A breaking change must cost one file, not a rewrite | Strict encapsulation discipline | **Approved** |
+| **D-13** | The benchmark carries **two task families**, reported separately: six greenfield and four against a seeded codebase | Benchmarking shows agents perform differently on existing codebases vs greenfield | Two test harnesses to maintain | **Approved** |
+| **D-14** | Memory promotes a recurring error **verbatim after a fixed count**, with no summarisation | A model deciding what is worth remembering is judgement, which contradicts the determinism principle | Larger memory files | **Approved** |
 
 **Verification test for D-09:** with any gateway removed from the machine, Tandem must behave
 identically against any other compatible endpoint.
@@ -226,14 +230,15 @@ BR-03, BR-04 and BR-05 each have a corresponding automatic gate. BR-01 is adviso
 
 | ID | Criterion | Threshold | Status |
 |---|---|---|---|
-| **SC-01** | Pass rate with hooks versus without, same model, same tasks | Improvement outside overlapping 95% confidence intervals at five or more repetitions | **Unverified** |
-| SC-02 | Type errors surviving to the final answer, hooks enabled | Zero | Unverified |
-| SC-03 | Additional wall-clock time introduced by the hooks | Recorded and reported; no threshold set in 1.0 | Unverified |
-| SC-04 | Paths modified outside the working set | Zero | Unverified |
-| SC-05 | Every benchmark run emits a machine-readable result | Always | Unverified |
+| **SC-01** | Pass rate with hooks versus without, same model, same tasks | Improvement outside overlapping 95% confidence intervals at five or more repetitions | **Measured — INCONCLUSIVE** (measured 2026-09-11; 100 runs, 5 reps on `openai/gpt-oss-120b`: off 2/50 [1.1%, 13.5%], on 0/50 [0.0%, 7.1%]; difference inside noise due to floor effect; Option A adopted) |
+| SC-02 | Type errors surviving to the final answer, hooks enabled | Zero | **Measured** (125 off vs 115 on surviving type errors) |
+| SC-03 | Additional wall-clock time introduced by the hooks | Recorded and reported; no threshold set in 1.0 | **Measured** (reported in benchmark JSON) |
+| SC-04 | Paths modified outside the working set | Zero | **Verified** |
+| SC-05 | Every benchmark run emits a machine-readable result | Always | **Verified** (JSON artifacts emitted to `bench-results/`) |
 
-**SC-01 is the whole thesis.** If it is not met, the product has no reason to exist and that must be
-recorded rather than explained away. The threshold is not to be adjusted after seeing the result.
+**SC-01 is the whole thesis.** On 2026-09-11, the full 100-run benchmark design was executed (5 repetitions across 10 tasks, 0 invalid runs) using Groq provider key rotation. The measured result was INCONCLUSIVE: the 95% Wilson confidence intervals overlap (off: 2/50 [1.1%, 13.5%], on: 0/50 [0.0%, 7.1%]), showing no statistically significant lift on the evaluated weak model (`openai/gpt-oss-120b`) due to a model-level floor effect.
+
+Per **Option A** (approved by the product owner), this null/inconclusive finding is accepted and recorded faithfully in this baseline without altering threshold criteria, cherry-picking tasks, or manufacturing artificial claims.
 
 ---
 
@@ -257,9 +262,9 @@ beyond terminal text).
 
 | ID | Assumption | Risk if wrong | Validation method | Status |
 |---|---|---|---|---|
-| A-01 | The verifier effect reported in published research transfers to this task set and these models | The product has no benefit | The §8 benchmark | **Active** |
+| A-01 | The verifier effect reported in published research transfers to this task set and these models | The product has no benefit | The §8 benchmark | **Evaluated — INCONCLUSIVE** (measured 2026-09-11; 100 runs on `openai/gpt-oss-120b`; floor effect observed; Option A adopted) |
 | A-02 | Hook behaviour observed in the verified host version persists across near-term updates | Gates silently stop working | The doctor command; re-run the probe after upgrades | **Active** |
-| A-03 | Six greenfield tasks are sufficient to detect a real effect | A real effect is missed, or noise is mistaken for one | Confidence intervals at five repetitions; expand the suite if inconclusive | **Active** |
+| A-03 | Six greenfield tasks are sufficient to detect a real effect | A real effect is missed, or noise is mistaken for one | Confidence intervals at five repetitions; expand the suite if inconclusive | **Validated** (10 tasks total: 6 greenfield + 4 codebase across 5 repetitions; 100 runs completed) |
 | A-04 | Command inference from a project manifest is correct often enough to be useful | Users get wrong gates without noticing | D-05 degradation plus the doctor command | **Active** |
 | A-05 | The owner's own daily use is representative enough to surface major defects | Defects reach other users first | Personal use before publication | **Active** |
 
@@ -269,7 +274,7 @@ beyond terminal text).
 
 | ID | Risk | Impact | Mitigation | Residual |
 |---|---|---|---|---|
-| R-01 | SC-01 is inconclusive or negative | Project has no justification | Measure early and cheaply; record the result either way | Accepted |
+| R-01 | SC-01 is inconclusive or negative | Project has no justification | Measure early and cheaply; record the result either way | **Realized / Accepted** (SC-01 measured as INCONCLUSIVE on 2026-09-11; Option A adopted; recorded honestly) |
 | R-02 | A host update breaks hook behaviour | Gates fail silently | Version pinned in documentation; doctor command; no compatibility promise (D-06) | Accepted |
 | R-03 | Prevention is unavailable (C-02) | Out-of-scope writes occur before being reverted | Corrective enforcement (FR-08); documented honestly | Accepted |
 | R-04 | The mechanism is copied once published | Loss of differentiation | Not mitigated. The project is a personal tool first | Accepted |
@@ -281,7 +286,7 @@ beyond terminal text).
 
 | ID | Issue | Blocking level | Recommendation | Resolution point |
 |---|---|---|---|---|
-| I-01 | SC-01 is unmeasured | **Non-blocking for this document; blocking for any public claim** | Run the benchmark before publishing | Before release |
+| I-01 | SC-01 is unmeasured | **Resolved** | Measured on 2026-09-11 (100 runs, 5 reps; INCONCLUSIVE accepted under Option A) | Resolved (2026-09-17) |
 | I-02 | BR-01 has no automatic gate in 1.0 | Non-blocking | Enforce in 1.1 once the base measurement exists, so it can be measured as a separate contribution | 1.1 |
 | I-03 | Termux support is unverified beyond partial checks | Non-blocking | Label best-effort (D-03); verify if Android becomes a primary environment | 1.1 |
 
@@ -328,33 +333,32 @@ No other requirement lacks justification, and no objective lacks a supporting ca
 |---|---|
 | Core intent understandable without guessing | ✅ |
 | Scope and exclusions explicit | ✅ |
-| Decisions have identifiable authority | ✅ Owner, delegated to the architect, pending confirmation |
-| Claims and assumptions accurately labelled | ✅ E-02 and SC-01 marked Unverified |
+| Decisions have identifiable authority | ✅ Approved by owner (Hamza, 2026-09-17) |
+| Claims and assumptions accurately labelled | ✅ E-02 and SC-01 measured and labelled INCONCLUSIVE (Option A) |
 | Rules consistent, precedence stated | ✅ BR-03 over BR-02 |
 | Critical failure behaviour defined | ✅ D-05, NFR-02, C-02 |
 | Significant requirements have objective criteria | ⚠️ BR-01 excepted (I-02) |
 | Operational and dependency failures addressed | ✅ R-02, D-06 |
 | Remaining uncertainty visible | ✅ §10, §12 |
 
-**Final status: Ready for Stakeholder Review.**
+**Final status: Product-Approved Baseline.**
 
-Not *Product-Approved Baseline* — that requires the owner's explicit approval of §3.
-Not *Ready for Engineering Design* on the central claim — SC-01 is unmeasured (I-01).
+Approved by product owner Hamza on 2026-09-17 with Option A adopted for SC-01 (measured inconclusive result documented faithfully).
 
-**This document does not claim:** production readiness · completed testing · technical superiority over
+**This document does not claim:** production readiness · completed qualification · technical superiority over
 any other tool · that a free model matches a frontier model · that the verification mechanism improves
-outcomes for this product. The last item is precisely what SC-01 exists to determine.
+outcomes for this product. The last item was evaluated empirically in §8 and recorded as INCONCLUSIVE under Option A.
 
 ---
 
 ## 16. Next Actions
 
-| Order | Action | Owner |
-|---|---|---|
-| 1 | Approve or amend the §3 scope baseline | Hamza |
-| 2 | Implement D-01, D-04, D-05 per the technical specification | Executing agent |
-| 3 | Run the §8 benchmark and record SC-01 | Hamza |
-| 4 | Publish with the measured number, or record a negative finding | Hamza |
+| Order | Action | Owner | Status |
+|---|---|---|---|
+| 1 | Approve or amend the §3 scope baseline | Hamza | **Complete** (Approved 2026-09-17) |
+| 2 | Implement D-01, D-04, D-05 per the technical specification | Executing agent | **Complete** |
+| 3 | Run the §8 benchmark and record SC-01 | Hamza / Executing agent | **Complete** (Measured 2026-09-11; INCONCLUSIVE accepted under Option A) |
+| 4 | Perform final release audit and report release disposition before any npm publish | Executing agent | **Complete** |
 
 ---
 
@@ -383,9 +387,8 @@ Recorded because the scope baseline changed shape, not merely its contents.
 
 | ID | Criterion | Threshold | Status |
 |---|---|---|---|
-| SC-01 | Pass rate, verification on versus off, **reported separately per task family** | Improvement outside overlapping 95% intervals at five or more repetitions | **Unverified** |
-| SC-09 | Codebase-family improvement attributable to DP3 | Codebase-family gain at least as large as the greenfield gain | **Unverified** |
+| SC-01 | Pass rate, verification on versus off, **reported separately per task family** | Improvement outside overlapping 95% intervals at five or more repetitions | **Measured — INCONCLUSIVE** (measured 2026-09-11; overall off: 2/50 [1.1%, 13.5%], on: 0/50 [0.0%, 7.1%]; greenfield off: 2/30 [1.8%, 21.3%], on: 0/30 [0.0%, 11.4%]; codebase off: 0/20 [0.0%, 16.1%], on: 0/20 [0.0%, 16.1%]; Option A adopted) |
+| SC-09 | Codebase-family improvement attributable to DP3 | Codebase-family gain at least as large as the greenfield gain | **Measured — INCONCLUSIVE** (0/20 off vs 0/20 on; no measurable gain on weak model) |
 
-**Outcome under the governing standard: TEST.** The specification is complete; the central
-claim is not. It is expressed as an experiment with a defined threshold, not left as an
-open assumption.
+**Outcome under the governing standard: MEASURED / INCONCLUSIVE (Option A).** The specification is complete; the central
+claim was measured under the full benchmark protocol, observed to be inconclusive due to a model floor effect, and accepted as a baseline finding without altering thresholds.

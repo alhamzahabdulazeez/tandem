@@ -1,0 +1,4 @@
+{
+  "typecheckCommand": null,
+  "testCommand": "npm test --silent"
+}

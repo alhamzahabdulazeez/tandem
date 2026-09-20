@@ -1,6 +1,10 @@
 name: Gate 0 Linux Qualification Probe
 
 on:
+  push:
+    branches:
+      - gate0-linux-probe
+      - main
   workflow_dispatch:
 
 jobs:
@@ -10,6 +14,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable unprivileged user namespaces
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Install qualification tools
         run: |
@@ -25,8 +38,8 @@ jobs:
           uname -m
           echo
           echo "=== NODE ==="
-          node --version || true
-          which node || true
+          node --version
+          which node
           echo
           echo "=== BWRAP ==="
           bwrap --version
@@ -98,20 +111,35 @@ jobs:
           const fs = require("node:fs");
           const file = "test.tmp";
           const final = "test.final";
+
           const fd = fs.openSync(file, "w");
           fs.writeSync(fd, Buffer.from("tandem-gate0-test\n"));
           fs.fsyncSync(fd);
           fs.closeSync(fd);
+
           fs.renameSync(file, final);
+
           const dir = fs.openSync(".", "r");
           fs.fsyncSync(dir);
           fs.closeSync(dir);
+
           if (fs.readFileSync(final, "utf8") !== "tandem-gate0-test\n") {
             process.exit(1);
           }
+
           fs.unlinkSync(final);
           console.log("STORAGE_DURABILITY_PASS");
           NODE
+
+      - name: Execute Qualification Contract Generator
+        run: |
+          node scripts/gate0-linux-qualify.cjs --emit-docs
+
+      - name: Run Test Suite on Qualified Linux Host
+        run: |
+          npm test
+          npm run test:contracts
+          npm run test:units
 
       - name: Save evidence
         if: always()
@@ -122,6 +150,7 @@ jobs:
           cat /proc/self/cgroup > gate0-evidence/cgroup.txt
           mount | grep cgroup > gate0-evidence/cgroup-mount.txt || true
           cat /sys/fs/cgroup/cgroup.controllers > gate0-evidence/cgroup-controllers.txt || true
+          cp docs/qualification/*-LINUX-*.json gate0-evidence/ || true
 
       - name: Upload evidence
         if: always()

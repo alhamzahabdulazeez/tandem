@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "document_type": "BUDGET_POLICY_V1",
+  "schema_version": "1.0.0",
+  "policy_id": "tandem-budget-policy-default-v1",
+  "resolved_for_blocker": "IB-03",
+  "created_at": "2026-09-17T16:30:00.000Z",
+  "contract_authority": "TANDEM_MASTER_EXECUTION_PRD_V1.md §12 / §33",
+  "dimensions": {
+    "actions": {
+      "dimension": "actions",
+      "hardLimit": 50,
+      "protectedFuture": 10,
+      "softTarget": 30,
+      "estimated": 15,
+      "unit": "invocations"
+    },
+    "tokens": {
+      "dimension": "tokens",
+      "hardLimit": 1000000,
+      "protectedFuture": 200000,
+      "softTarget": 600000,
+      "estimated": 250000,
+      "unit": "tokens"
+    },
+    "wall_clock_ms": {
+      "dimension": "wall_clock_ms",
+      "hardLimit": 600000,
+      "protectedFuture": 60000,
+      "softTarget": 300000,
+      "estimated": 120000,
+      "unit": "milliseconds"
+    },
+    "file_bytes_written": {
+      "dimension": "file_bytes_written",
+      "hardLimit": 10485760,
+      "protectedFuture": 1048576,
+      "softTarget": 5242880,
+      "estimated": 102400,
+      "unit": "bytes"
+    },
+    "child_processes": {
+      "dimension": "child_processes",
+      "hardLimit": 100,
+      "protectedFuture": 20,
+      "softTarget": 50,
+      "estimated": 10,
+      "unit": "processes"
+    }
+  },
+  "invariants": [
+    "INV-15: settled + reservations + newReservation + remainingProtectedFuture <= hardLimit",
+    "Conservative reservations must equal worst-case exposure before dispatch",
+    "Protected future is reserved strictly for mandatory verification, fencing, and terminal recording"
+  ]
+}

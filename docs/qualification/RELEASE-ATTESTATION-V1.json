@@ -1,0 +1,55 @@
+{
+  "document_type": "RELEASE_ATTESTATION_V1",
+  "schema_version": "1.0.0",
+  "package": {
+    "name": "tandem-hooks",
+    "version": "0.1.0",
+    "distribution_type": "npm",
+    "bin": {
+      "tandem": "./bin/tandem.cjs",
+      "tandem-hooks": "./bin/tandem.cjs"
+    }
+  },
+  "authorization": {
+    "authorized_by": "Hamza",
+    "role": "Product Owner & Release Authority",
+    "attestation_timestamp": "2026-09-17T17:30:00.000Z",
+    "explicit_owner_instruction": "I have reviewed the final Gate 0 qualification report. I explicitly authorize the release of tandem-hooks@0.1.0.",
+    "authority_granted": true,
+    "release_disposition": "RELEASE_READY_FOR_DECLARED_PROFILE"
+  },
+  "qualification_context": {
+    "profile_id": "linux-x86_64-ubuntu-24.04",
+    "qualification_id": "qual-host-linux-x86_64-ubuntu-24.04-v1",
+    "profile_digest": "72ebcb8201a0733d3c85ee2e3d368e5e78377e8a939f8df5b3ec0ef6631ad18e",
+    "support_record": "docs/qualification/SUPPORT-RECORD-LINUX-V1.json",
+    "containment_probe_report": "docs/qualification/CONTAINMENT-PROBE-REPORT-LINUX-V1.json",
+    "storage_durability_report": "docs/qualification/STORAGE-DURABILITY-REPORT-LINUX-V1.json"
+  },
+  "blocker_resolutions": {
+    "IB-01": {
+      "status": "RESOLVED",
+      "resolution": "14/14 reachability surfaces empirically verified on standard Linux Ubuntu 24.04 via GitHub Actions workflow run 35239992548"
+    },
+    "IB-02": {
+      "status": "RESOLVED",
+      "resolution": "Deterministic zero-dependency CommonJS CLI key-value store first-slice fixture in test/fixtures/first-slice bound by SHA-256 in docs/fixtures/FIXTURE-MANIFEST-V1.json"
+    },
+    "IB-03": {
+      "status": "RESOLVED",
+      "resolution": "Multi-dimensional additive conservation budget policy across 5 dimensions with mandatory reserves defined in docs/budget/BUDGET-POLICY-V1.json"
+    },
+    "IB-04": {
+      "status": "RESOLVED",
+      "resolution": "22-field canonical frozen evaluation protocol with SHA-256 digest in docs/measurement/FROZEN-PROTOCOL-V1.json evaluated over all-started-task denominator"
+    }
+  },
+  "invariants_confirmed": {
+    "containment_enforced": true,
+    "no_synthetic_authority": true,
+    "incumbent_unmodified": true,
+    "fail_closed_guaranteed": true,
+    "tests_passing": true,
+    "packaging_verified": true
+  }
+}

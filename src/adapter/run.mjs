@@ -10,16 +10,51 @@
  * The three hooks come from session.mjs and carry all five decision points.
  * This file and session.mjs are the only ones that know a host exists.
  */
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createHooks, loadHost, HOST_PACKAGE } from './session.mjs';
 import { createTools } from './tools.mjs';
 
+function loadEnvDefaults() {
+  const vars = ['TANDEM_BASE_URL', 'TANDEM_API_KEY', 'TANDEM_MODEL', 'TANDEM_PROVIDER', 'TANDEM_API'];
+  const missing = vars.filter(v => !process.env[v]);
+  if (missing.length === 0) return;
+
+  const home = os.homedir();
+  const rcFiles = [
+    path.join(home, '.bashrc'),
+    path.join(home, '.profile'),
+    path.join(home, '.bash_profile'),
+  ];
+  for (const rc of rcFiles) {
+    if (fs.existsSync(rc)) {
+      try {
+        const content = fs.readFileSync(rc, 'utf8');
+        for (const line of content.split('\n')) {
+          const m = line.match(/^\s*(?:export\s+)?([A-Z0-9_]+)=(?:["']([^"']*)["']|([^\s#]+))/);
+          if (m) {
+            const key = m[1];
+            const val = m[2] !== undefined ? m[2] : m[3];
+            if (vars.includes(key) && !process.env[key]) {
+              process.env[key] = val;
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+}
+
 function parseArgs(argv) {
+  loadEnvDefaults();
   const out = { model: process.env.TANDEM_MODEL || null, provider: process.env.TANDEM_PROVIDER || null, rest: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--model' || a === '-m') out.model = argv[++i];
     else if (a === '--provider') out.provider = argv[++i];
     else if (a === '-p' || a === '--print') { /* accepted for familiarity */ }
+    else if (a === '-v' || a === '--verbose') { /* accepted */ }
     else out.rest.push(a);
   }
   out.prompt = out.rest.join(' ').trim() || null;
@@ -179,7 +214,7 @@ export async function run(argv, deps = {}) {
   err('tandem: verification active — 5 decision points, working set enforced.\n' +
       '        disable with TANDEM_HOOKS=off\n\n');
 
-  const apiKey = process.env.TANDEM_API_KEY || null;
+  const apiKey = process.env.TANDEM_API_KEY || (deps_modelConfig().baseUrl ? 'none' : null);
   if (VERBOSE) err('  [diag] baseUrl       : ' + (deps_modelConfig().baseUrl || '(unset — set TANDEM_BASE_URL)') + '\n' +
                    '  [diag] api key       : ' + (apiKey ? 'present' : 'MISSING — set TANDEM_API_KEY') + '\n');
 
@@ -193,6 +228,7 @@ export async function run(argv, deps = {}) {
   });
 
   const seen = [];
+  let streamedAnyText = false;
   if (typeof agent.subscribe === 'function') {
     agent.subscribe((ev) => {
       if (!ev) return;
@@ -209,13 +245,38 @@ export async function run(argv, deps = {}) {
         }
         err('  [diag] event         : ' + ev.type + extra + '\n');
       }
-      if (ev.type === 'text' && typeof ev.text === 'string') out(ev.text);
+
+      if (ev.type === 'message_start') {
+        streamedAnyText = false;
+      } else if (ev.type === 'message_update') {
+        if (ev.assistantMessageEvent && ev.assistantMessageEvent.type === 'text_delta' && typeof ev.assistantMessageEvent.delta === 'string') {
+          out(ev.assistantMessageEvent.delta);
+          streamedAnyText = true;
+        }
+      } else if (ev.type === 'message_end') {
+        const m = ev.message;
+        if (!streamedAnyText && m && m.role === 'assistant' && Array.isArray(m.content)) {
+          for (const block of m.content) {
+            if (block && block.type === 'text' && typeof block.text === 'string') {
+              out(block.text);
+            }
+          }
+        }
+        streamedAnyText = false;
+      }
     });
   }
 
   try {
     await agent.prompt(finalPrompt);
     if (typeof agent.waitForIdle === 'function') await agent.waitForIdle();
+
+    const telem = typeof hooks.getTelemetry === 'function' ? hooks.getTelemetry() : {
+      toolCalls: 0,
+      filesRead: [],
+      scopeBlocksFired: 0,
+    };
+    err(`\n[tandem:telemetry] tool_calls=${telem.toolCalls} files_read=${telem.filesRead.length} scope_blocks_fired=${telem.scopeBlocksFired}\n`);
 
     // A turn that produced no events means the model was never reached.
     if (seen.length === 0) {
@@ -224,13 +285,17 @@ export async function run(argv, deps = {}) {
           '        credentials configured. Tandem does not manage them (D-09).\n');
       return 3;
     }
-    if (typeof agent.state === 'function') {
-      const st = agent.state();
-      if (st && st.errorMessage) { err('\ntandem: agent reported — ' + st.errorMessage + '\n'); return 4; }
-    }
+    const st = typeof agent.state === 'function' ? agent.state() : agent.state;
+    if (st && st.errorMessage) { err('\ntandem: agent reported — ' + st.errorMessage + '\n'); return 4; }
     out('\n');
     return 0;
   } catch (e) {
+    const telem = typeof hooks.getTelemetry === 'function' ? hooks.getTelemetry() : {
+      toolCalls: 0,
+      filesRead: [],
+      scopeBlocksFired: 0,
+    };
+    err(`\n[tandem:telemetry] tool_calls=${telem.toolCalls} files_read=${telem.filesRead.length} scope_blocks_fired=${telem.scopeBlocksFired}\n`);
     err('\ntandem: session failed — ' + (e && e.message ? e.message : String(e)) + '\n');
     return 1;
   }

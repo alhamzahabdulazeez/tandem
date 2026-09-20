@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "document_type": "FIXTURE_MANIFEST_V1",
+  "schema_version": "1.0.0",
+  "fixture_id": "tandem-first-slice-fixture-v1",
+  "resolved_for_blocker": "IB-02",
+  "created_at": "2026-09-17T16:30:00.000Z",
+  "specification_path": "docs/fixtures/FIRST-SLICE-TASK.md",
+  "baseline": {
+    "root": "test/fixtures/first-slice",
+    "runtime": "node>=22",
+    "module_type": "commonjs",
+    "dependencies_count": 0,
+    "files": [
+      {
+        "path": "package.json",
+        "sha256": "87d1ce8d7c0d7aab09f3a9838180a257949c0a5234094db57090b71421ac3ab4",
+        "bytes": 286,
+        "role": "PACKAGE_DESCRIPTOR"
+      },
+      {
+        "path": "bin/cli.js",
+        "sha256": "df20609f5ad1e6f3e4acd8028cd4889d74dcca57676fee215fb861e71bec3cf5",
+        "bytes": 2180,
+        "role": "CLI_ENTRYPOINT"
+      },
+      {
+        "path": "lib/store.js",
+        "sha256": "671f86841f7be36586680b5fff0cdafc8c29a5b5d3b0512a371008c50b1e919a",
+        "bytes": 1570,
+        "role": "MODULE_LOGIC"
+      },
+      {
+        "path": "test/suite.test.js",
+        "sha256": "db8114fb974a9e08d7a8ff206feb23dbbd29fc9257e30fde21579ed9d98ee9ec",
+        "bytes": 2279,
+        "role": "TEST_SUITE"
+      }
+    ]
+  },
+  "verification": {
+    "recipe_command": "node --test test/suite.test.js",
+    "timeout_ms": 10000,
+    "expected_exit_code": 0,
+    "allow_network": false
+  },
+  "acceptance": {
+    "obligations": [
+      "OBL-01: Baseline tests pass",
+      "OBL-02: Syntax parses cleanly",
+      "OBL-03: No changes outside allowed scope",
+      "OBL-04: No new dependencies introduced"
+    ]
+  }
+}

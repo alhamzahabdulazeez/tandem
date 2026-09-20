@@ -1,0 +1,12 @@
+{
+  "name": "tandem-first-slice-fixture",
+  "version": "1.0.0",
+  "description": "Tandem PRD §2 / §33 direct-source JavaScript CLI task fixture",
+  "type": "commonjs",
+  "bin": {
+    "fixture-cli": "./bin/cli.js"
+  },
+  "scripts": {
+    "test": "node --test test/suite.test.js"
+  }
+}
