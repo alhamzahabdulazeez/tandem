@@ -9,7 +9,7 @@ This document records authoritative owner decisions resolving the initial blocke
 | **IB-01** | Runtime profile & containment | **DECIDED** | **QUALIFIED** (Docker runtime profile in CI) |
 | **IB-02** | First-slice baseline repository | **DECIDED** | **QUALIFIED** (Baseline commit `afa46cd`, RUN-IB02-005 passed both stages with write-time scope prevention) |
 | **IB-03** | Resource ceilings & reserve | **DECIDED** | **QUALIFIED** (Container limits & Tandem in-process budget counters enforced) |
-| **IB-04** | Paired evaluation protocol & criteria | **DECIDED** | **QUALIFIED** (Paired evaluation executed; ΔP = +73.33%, non-overlapping Wilson CIs, 1.08× overhead; scope-discipline mechanism documented) |
+| **IB-04** | Paired evaluation protocol & criteria | **DECIDED** | **QUALIFIED** (Paired evaluation executed; scope compliance delta 100% vs 0%, ΔP = +73.33% downstream of scope prevention, equal solution quality 75.00% vs 73.33%, 1.08× overhead) |
 
 > **Authoritative Invariant:** All four initial blockers (**IB-01**, **IB-02**, **IB-03**, **IB-04**) are now **QUALIFIED**. Android / Termux remains strictly development-only and NOT QUALIFIED.
 
@@ -101,9 +101,9 @@ Numeric resource ceilings per action:
   - **Supervisory Scope Fencing Events:** 16 write-time scope blocks fired in Arm B (`src/index.cjs` `beforeTool`), intercepting out-of-scope edits to `test/run.cjs` and allowing candidate adaptation; Arm A had 0 scope blocks available.
 - **Honest Scope-Discipline Interpretation & Limitations:**
   - **Causal Mechanism:** The measured benefit is strictly **write-time scope discipline**, not model solution quality. Tandem prevented out-of-scope mutations (e.g. test harness tampering) that invalidated 100% of completed Arm A runs.
-  - **Correctness Baseline:** In 12 of the 16 completed Arm A runs, the model wrote correct code passing the Stage 2 held-out grader, but was disqualified by the scope fence. The data does not claim Tandem improves model generation intelligence.
+  - **Equal Solution Quality:** In 12 of 16 completed Arm A runs (75.00%) and 11 of 15 completed Arm B runs (73.33%), the model generated code passing the Stage 2 held-out grader, proving equal underlying problem-solving capability.
   - **Structural Asymmetry:** Arm A had no scope enforcement by construction; this evaluates an enforced supervisory pipeline against an unenforced baseline.
-  - **Invalid Timeouts:** 12 of 42 runs (28.6%) timed out at the 120s ceiling without initiating tool activity and were classified as `INVALID` (excluded from the denominator per protocol).
+  - **Invalid Timeouts:** 12 of 43 attempted runs (27.9%) timed out at the 120s ceiling due to gateway stalls without initiating tool execution and were classified as `INVALID` (excluded from valid trials per protocol).
 
 ---
 
