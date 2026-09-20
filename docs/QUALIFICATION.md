@@ -9,7 +9,7 @@ This document records authoritative owner decisions resolving the initial blocke
 | **IB-01** | Runtime profile & containment | **DECIDED** | **QUALIFIED** (Docker runtime profile in CI) |
 | **IB-02** | First-slice baseline repository | **DECIDED** | **QUALIFIED** (Baseline commit `afa46cd`, RUN-IB02-005 passed both stages with write-time scope prevention) |
 | **IB-03** | Resource ceilings & reserve | **DECIDED** | **QUALIFIED** (Container limits & Tandem in-process budget counters enforced) |
-| **IB-04** | Paired evaluation protocol & criteria | **DECIDED** | **QUALIFIED** (Paired evaluation executed; scope compliance delta 100% vs 0%, ΔP = +75.00% downstream of scope prevention, equal solution quality 75.00% vs 84.00%, 0.34× lines changed ratio, 1.04× overhead) |
+| **IB-04** | Paired evaluation protocol & criteria | **DECIDED** | **QUALIFIED** (Paired evaluation executed; scope compliance delta 100% vs 0%, ΔP = +80.00% downstream of scope prevention, equal solution quality 80.00% vs 83.33%, 0.41× lines changed ratio, 1.07× overhead) |
 
 > **Authoritative Invariant:** All four initial blockers (**IB-01**, **IB-02**, **IB-03**, **IB-04**) are now **QUALIFIED**. Android / Termux remains strictly development-only and NOT QUALIFIED.
 
@@ -87,27 +87,27 @@ Numeric resource ceilings per action:
 
 ## IB-04: Paired Evaluation Protocol & Decision Criteria
 
-<!-- state_fingerprint: 16cd792782ab0f3e780c60cb6490cad66d25446205b534493ea67445930b6f02 -->
+<!-- state_fingerprint: db1487efd9ee6fc87e9df2605bfbb37075330a867b7471ead78c2ad2b658e9d8 -->
 
 - **Protocol Specification:** `docs/PAIRED_EVALUATION.md` (30 paired tasks, commit `afa46cd`)
 - **Evaluation Results Document:** `docs/PAIRED_EVALUATION_RESULTS.md`
-- **State Fingerprint:** `16cd792782ab0f3e780c60cb6490cad66d25446205b534493ea67445930b6f02`
+- **State Fingerprint:** `db1487efd9ee6fc87e9df2605bfbb37075330a867b7471ead78c2ad2b658e9d8`
 - **Primary Metric:** All-started pass rate ($P = S / N$) across 2-stage verification (scope fencing + baseline non-regression + held-out acceptance grader).
 - **Decision State:** **DECIDED**
 - **Qualification State:** **QUALIFIED**
 - **Qualification Evidence & Quantitative Results (`bench/paired/state.json`):**
-  - **Arm A (Baseline / Unassisted, `TANDEM_HOOKS=off`):** $0.00\%$ pass rate ($0/25$ valid trials, $95\%\text{ Wilson CI } [0.00\%, 13.32\%]$).
-  - **Arm B (Tandem-Assisted, `TANDEM_HOOKS=on`):** $75.00\%$ pass rate ($15/20$ valid trials, $95\%\text{ Wilson CI } [53.13\%, 88.81\%]$).
-  - **Meaningful Benefit ($\Delta P \ge +15.0\%$):** $\Delta P = +75.00\%$ (exceeds frozen threshold).
-  - **Uncertainty Decision Rule:** 95% Wilson intervals are non-overlapping ($\text{CI}_{A,\text{high}} = 13.32\% < \text{CI}_{B,\text{low}} = 53.13\%$).
-  - **Resource Overhead:** $1.04\times$ tool call ratio ($18.15 / 17.40$) and $1.06\times$ wall time ratio, strictly within the $1.80\times$ maximum ceiling.
-  - **Mutation Footprint Reduction:** $0.34\times$ lines changed ratio ($12.50$ vs $36.40$ lines), reflecting a $65.66\%$ reduction in code churn due to strict write-time scope containment ($1.00$ vs $2.00$ files changed).
-  - **Supervisory Scope Fencing Events:** 25 write-time scope blocks fired in Arm B (`src/index.cjs` `beforeTool`), intercepting out-of-scope edits to `test/run.cjs` and allowing candidate adaptation; Arm A had 0 scope blocks available.
+  - **Arm A (Baseline / Unassisted, `TANDEM_HOOKS=off`):** $0.00\%$ pass rate ($0/30$ valid trials, $95\%\text{ Wilson CI } [0.00\%, 11.35\%]$).
+  - **Arm B (Tandem-Assisted, `TANDEM_HOOKS=on`):** $80.00\%$ pass rate ($24/30$ valid trials, $95\%\text{ Wilson CI } [62.69\%, 90.50\%]$).
+  - **Meaningful Benefit ($\Delta P \ge +15.0\%$):** $\Delta P = +80.00\%$ (exceeds frozen threshold).
+  - **Uncertainty Decision Rule:** 95% Wilson intervals are non-overlapping ($\text{CI}_{A,\text{high}} = 11.35\% < \text{CI}_{B,\text{low}} = 62.69\%$).
+  - **Resource Overhead:** $1.07\times$ tool call ratio ($19.63 / 18.33$) and $1.10\times$ wall time ratio, strictly within the $1.80\times$ maximum ceiling.
+  - **Mutation Footprint Reduction:** $0.41\times$ lines changed ratio ($18.77$ vs $46.13$ lines), reflecting a $59.31\%$ reduction in code churn due to strict write-time scope containment ($0.97$ vs $2.00$ files changed).
+  - **Supervisory Scope Fencing Events:** 35 write-time scope blocks fired in Arm B (`src/index.cjs` `beforeTool`), intercepting out-of-scope edits to `test/run.cjs` and allowing candidate adaptation; Arm A had 0 scope blocks available.
 - **Honest Scope-Discipline Interpretation & Limitations:**
   - **Causal Mechanism:** The measured benefit is strictly **write-time scope discipline**, not model solution quality. Tandem prevented out-of-scope mutations (e.g. test harness tampering) that invalidated 100% of completed Arm A runs.
-  - **Equal Solution Quality:** In 21 of 25 completed Arm A runs (84.00%) and 15 of 20 completed Arm B runs (75.00%), the model generated code passing the Stage 2 held-out grader, proving equal underlying problem-solving capability.
+  - **Equal Solution Quality:** In 25 of 30 completed Arm A runs (83.33%) and 24 of 30 completed Arm B runs (80.00%), the model generated code passing the Stage 2 held-out grader, proving equal underlying problem-solving capability.
   - **Structural Asymmetry:** Arm A had no scope enforcement by construction; this evaluates an enforced supervisory pipeline against an unenforced baseline.
-  - **Invalid Timeouts:** 15 of 60 attempted runs (25.0%) timed out at the ceiling due to gateway stalls or prior attempts and were classified as `INVALID` (excluded from valid trials per protocol).
+  - **Invalid Timeouts:** 0 of 60 attempted runs (0.0%) timed out at the ceiling or failed to complete.
 
 ---
 
@@ -118,6 +118,6 @@ Numeric resource ceilings per action:
 3. Containment proof verified in CI (run `35397253342`, commit `a2187aa`) confirming network isolation, PID isolation, cgroup limits, and read-only root — establishing IB-01 as **QUALIFIED**.
 4. Resource ceilings and budget counter enforcement verified via container runtime limits (CI run `35405783410`, commit `fc02521`) and Tandem in-process budget enforcement with 20% reserve (commit `6bf6e7b`, suite at 1149 passed) — establishing IB-03 as **QUALIFIED**.
 5. First-slice baseline repository verification executed and verified against anchor commit `afa46cd` via run `RUN-IB02-005` (commit `e69080c`) with write-time scope prevention (fired at tool call 9), non-regression baseline (111/111), and held-out acceptance grader (5/5) — establishing **IB-02** as **QUALIFIED**.
-6. Paired evaluation protocol executed against anchor commit `afa46cd` via `bench/paired/runner.cjs` (`docs/PAIRED_EVALUATION_RESULTS.md`) demonstrating $\Delta P = +75.00\%$, non-overlapping Wilson CIs ($[0.00\%, 13.32\%]$ vs $[53.13\%, 88.81\%]$), $0.34\times$ mutation footprint ratio ($12.50$ vs $36.40$ lines), $1.04\times$ resource overhead, and 25 write-time scope blocks fired — establishing **IB-04** as **QUALIFIED**.
+6. Paired evaluation protocol executed against anchor commit `afa46cd` via `bench/paired/runner.cjs` (`docs/PAIRED_EVALUATION_RESULTS.md`) demonstrating $\Delta P = +80.00\%$, non-overlapping Wilson CIs ($[0.00\%, 11.35\%]$ vs $[62.69\%, 90.50\%]$), $0.41\times$ mutation footprint ratio ($18.77$ vs $46.13$ lines), $1.07\times$ resource overhead, and 35 write-time scope blocks fired — establishing **IB-04** as **QUALIFIED**.
 7. All four initial blockers (**IB-01**, **IB-02**, **IB-03**, **IB-04**) are now **QUALIFIED**.
 8. Android / Termux explicitly documented as development-only and NOT QUALIFIED.
