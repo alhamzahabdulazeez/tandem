@@ -19,4 +19,4 @@ The difference in accepted solutions is entirely due to write-time scope enforce
 
 ## Limitations
 
-This evaluation tested single-file bug fixes and feature additions in a JavaScript codebase. In a real-world repository with complex multi-file refactoring, permissible edit boundaries must be carefully configured to prevent blocking legitimate edits. Additionally, the unassisted baseline had no edit restrictions, meaning any test file modification immediately failed validation.
+This evaluation tested single-file bug fixes and feature additions in a JavaScript codebase. In a real-world repository with complex multi-file refactoring, permissible edit boundaries must be carefully configured to prevent blocking legitimate edits. Additionally, the unassisted baseline had no edit restrictions, meaning any test file modification immediately failed validation. Furthermore, the benchmark tasks were authored for this evaluation and several implied registering a test, which may have induced the test-runner edits; this has not been controlled for.

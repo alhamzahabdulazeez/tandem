@@ -1,10 +1,26 @@
 # tandem
 
-A CLI coding agent that verifies at **development decision points**, not only at the end.
+A supervisory harness that keeps AI coding agents focused on their assigned tasks and blocks unauthorized modifications before they reach the disk.
 
-Every mainstream coding agent checks its work when it thinks it has finished. Tandem checks
-at five points derived from what the agent is about to do — including **before it edits a
-file that other files depend on**, which is where agents fail most on real codebases.
+| Finding | Unassisted Agent | Tandem-Monitored Agent | Takeaway |
+| :--- | :--- | :--- | :--- |
+| **Code Correctness** | 83.3% (25 of 30) | 80.0% (24 of 30) | Both setups write working code at virtually the same rate. |
+| **Scope Discipline** | 0.0% (0 of 30) | 100.0% (30 of 30) | Unassisted agents always modified test runners; Tandem blocked every out-of-scope edit. |
+| **Accepted Solutions** | 0.0% (0 of 30) | 80.0% (24 of 30) | Intercepting bad edits allowed correct solutions to pass validation without disqualification. |
+| **Code Churn** | 46.1 lines changed | 18.8 lines changed | Tandem reduced total modified lines by 59.3%, keeping diffs clean and minimal. |
+
+## Install
+
+```bash
+npm i -g @earendil-works/pi-agent-core
+npm i -g tandem-hooks
+
+cd your-project
+tandem init
+tandem run "add expiry support to the Store class"
+```
+
+*(Note: `tandem-hooks` is the package name; both `tandem` and `tandem-hooks` binary commands are installed.)*
 
 ---
 
@@ -21,18 +37,7 @@ automatically.
 
 ---
 
-## Install
-
-```bash
-npm i -g @earendil-works/pi-agent-core
-npm i -g tandem-hooks
-
-cd your-project
-tandem init
-tandem run "add expiry support to the Store class"
-```
-
-*(Note: `tandem-hooks` is the package name; both `tandem` and `tandem-hooks` binary commands are installed.)*
+## Commands and Diagnostics
 
 `tandem check [--since <git-ref>] [--baseline]` runs active project diagnosis across three sections:
 1. **Type errors**: project-wide compiler check, reporting deduplicated diagnostics.
@@ -47,7 +52,11 @@ tokens, keys, or environment values.
 
 ---
 
-## The five decision points
+## Architecture: The five decision points
+
+Every mainstream coding agent checks its work when it thinks it has finished. Tandem checks
+at five points derived from what the agent is about to do — including **before it edits a
+file that other files depend on**, which is where agents fail most on real codebases.
 
 | Point | Fires | Gate |
 |---|---|---|
