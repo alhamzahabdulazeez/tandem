@@ -4,7 +4,7 @@
  * bin/audit.cjs
  *
  * Standalone, deterministic repository auditor with zero model dependencies.
- * Fails loudly on 5 specific defect classes observed in the project:
+ * Fails loudly on 6 specific defect classes observed in the project:
  *
  * 1. QUALIFIED without evidence:
  *    Any blocker marked QUALIFIED in docs/QUALIFICATION.md whose section lacks
@@ -26,11 +26,16 @@
  *    Any quantitative number in a results document that cannot be reproduced
  *    by repo state or deterministic evaluation commands.
  *
+ * 6. Completion claim mismatch:
+ *    Any document claiming a schedule is complete when completed_runs < total_runs,
+ *    or whose recorded state fingerprint does not match bench/paired/state.json.
+ *
  * Exit status:
  *   - 0: all audit checks passed with zero defects.
  *   - 1: one or more defects detected (printed as DEFECT_NAME: description at file:line).
  */
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -680,11 +685,207 @@ function auditClaimEvidenceMismatch(options = {}) {
 }
 
 // ============================================================================
+// 6. COMPLETION CLAIM MISMATCH & STATE FINGERPRINT
+// ============================================================================
+
+/**
+ * Compute a deterministic canonical SHA-256 fingerprint of evaluation state data.
+ *
+ * @param {object} stateData Parsed state.json object.
+ * @returns {string|null} Hexadecimal SHA-256 digest.
+ */
+function computeStateFingerprint(stateData) {
+  if (!stateData) return null;
+  const runs = (stateData.runs || []).map((r, i) => ({
+    idx: r.run_index !== undefined ? r.run_index : i + 1,
+    task_id: r.task_id || '',
+    arm: r.arm || '',
+    status: r.status || '',
+    passed: Boolean(r.passed),
+    stage1_passed: Boolean(r.stage1_passed),
+    stage2_passed: Boolean(r.stage2_passed),
+    scope_valid: Boolean(r.scope_valid),
+    tool_calls: r.tool_calls || 0,
+    files_read: r.files_read || 0,
+    files_changed: r.files_changed || 0,
+    lines_added: r.lines_added || 0,
+    lines_removed: r.lines_removed || 0,
+    wall_time_ms: r.wall_time_ms || 0,
+    stop_reason: r.stop_reason || null,
+    scope_blocks_fired: r.scope_blocks_fired || 0,
+  }));
+
+  const canonical = {
+    baseline_commit: stateData.baseline_commit || '',
+    total_tasks: stateData.total_tasks || 0,
+    total_runs: stateData.total_runs || 0,
+    completed_runs: stateData.completed_runs !== undefined
+      ? stateData.completed_runs
+      : runs.filter((r) => r.status === 'COMPLETED').length,
+    invalid_runs: stateData.invalid_runs !== undefined
+      ? stateData.invalid_runs
+      : runs.filter((r) => r.status === 'INVALID').length,
+    runs,
+  };
+
+  return crypto.createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
+}
+
+/**
+ * Audit documentation files (docs/PAIRED_EVALUATION_RESULTS.md and docs/QUALIFICATION.md)
+ * to verify completion claims match bench/paired/state.json, and verify that the recorded
+ * state fingerprint matches the current state.json.
+ *
+ * Fails if:
+ * 1. A document states or implies that all 60 runs completed when completed_runs < total_runs.
+ * 2. A document is missing an evaluation state fingerprint or its recorded fingerprint
+ *    does not match the current state.json.
+ *
+ * @param {object} [options]
+ * @param {string} [options.statePath]
+ * @param {object} [options.stateData]
+ * @param {string} [options.resultsPath]
+ * @param {string} [options.resultsContent]
+ * @param {string} [options.qualificationPath]
+ * @param {string} [options.qualificationContent]
+ * @param {Array<{filePath: string, content?: string}>} [options.documents]
+ * @returns {Array<{type: string, message: string, file: string, line: number}>}
+ */
+function auditCompletionClaimMismatch(options = {}) {
+  const statePath = options.statePath || path.join(REPO_ROOT, 'bench', 'paired', 'state.json');
+  const defects = [];
+
+  let state = options.stateData;
+  if (!state) {
+    if (!fs.existsSync(statePath)) {
+      return [{
+        type: 'COMPLETION_CLAIM_MISMATCH',
+        message: `Evaluation state file does not exist: ${path.relative(REPO_ROOT, statePath)}`,
+        file: path.relative(REPO_ROOT, statePath),
+        line: 1,
+      }];
+    }
+    try {
+      state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    } catch (err) {
+      return [{
+        type: 'COMPLETION_CLAIM_MISMATCH',
+        message: `Failed to parse evaluation state JSON: ${err.message}`,
+        file: path.relative(REPO_ROOT, statePath),
+        line: 1,
+      }];
+    }
+  }
+
+  const expectedFingerprint = computeStateFingerprint(state);
+  const runs = state.runs || [];
+  const completedRuns = state.completed_runs !== undefined
+    ? state.completed_runs
+    : runs.filter((r) => r.status === 'COMPLETED').length;
+  const totalRuns = state.total_runs || runs.length || 60;
+  const isScheduleFullyCompleted = completedRuns === totalRuns;
+
+  const prematureCompletionPatterns = [
+    /\b(?:all\s+)?60\s+(?:paired\s+)?(?:runs?|trials?)\s+(?:were\s+|are\s+|have\s+been\s+)?completed\b/i,
+    /\bcompleted\s+(?:all\s+)?60\s+(?:paired\s+)?(?:runs?|trials?)\b/i,
+    /\b(?:all\s+)?60\s+completed\s+trials\b/i,
+    /\b60\s+of\s+60\s+(?:runs?|trials?)\s+completed\b/i,
+    /\b60\s*\/\s*60\s+completed\b/i,
+    /\b60\s+valid\s+completed\s+trials\b/i,
+    /\b(?:all|across)\s+(?:the\s+)?60\s+completed\s+runs\b/i,
+    /\b30\s+completed\s+runs\s+in\s+Arm\s+[AB]\b/i,
+    /\b30\s+valid\s+trials\s+in\s+Arm\s+[AB]\b/i,
+    /\b30\s*\/\s*30\s+valid\s+trials\b/i,
+    /\b30\s+of\s+30\s+trials\s+completed\b/i,
+    /\b60\s+completed\s+evaluations\b/i,
+  ];
+
+  const docsToCheck = [];
+  if (options.documents) {
+    options.documents.forEach((d) => docsToCheck.push(d));
+  } else {
+    const resultsPath = options.resultsPath || path.join(REPO_ROOT, 'docs', 'PAIRED_EVALUATION_RESULTS.md');
+    let resultsContent = options.resultsContent;
+    if (resultsContent === undefined && fs.existsSync(resultsPath)) {
+      resultsContent = fs.readFileSync(resultsPath, 'utf8');
+    }
+    if (resultsContent !== undefined) {
+      docsToCheck.push({ filePath: resultsPath, content: resultsContent });
+    }
+
+    const qualPath = options.qualificationPath || path.join(REPO_ROOT, 'docs', 'QUALIFICATION.md');
+    let qualContent = options.qualificationContent;
+    if (qualContent === undefined && fs.existsSync(qualPath)) {
+      qualContent = fs.readFileSync(qualPath, 'utf8');
+    }
+    if (qualContent !== undefined) {
+      docsToCheck.push({ filePath: qualPath, content: qualContent });
+    }
+  }
+
+  for (const doc of docsToCheck) {
+    const relPath = path.relative(REPO_ROOT, doc.filePath);
+    const content = doc.content || '';
+    const lines = content.split('\n');
+
+    // 1. Check for premature or overstated completion claims when completed < total
+    if (!isScheduleFullyCompleted) {
+      lines.forEach((line, index) => {
+        const lineNum = index + 1;
+        for (const pattern of prematureCompletionPatterns) {
+          if (pattern.test(line)) {
+            defects.push({
+              type: 'COMPLETION_CLAIM_MISMATCH',
+              message: `Document claims or implies that all ${totalRuns} runs completed ("${line.trim()}"), but state.json records only ${completedRuns} completed runs (${totalRuns - completedRuns} invalid or incomplete)`,
+              file: relPath,
+              line: lineNum,
+            });
+            break;
+          }
+        }
+      });
+    }
+
+    // 2. Check for recorded state fingerprint
+    const fpMatch = content.match(/<!--\s*state_fingerprint:\s*([0-9a-f]{64})\s*-->/i) ||
+                    content.match(/(?:Evaluation\s+State\s+Fingerprint|State\s+Fingerprint):\s*[`"'\s]*([0-9a-f]{64})/i);
+
+    if (!fpMatch) {
+      defects.push({
+        type: 'COMPLETION_CLAIM_MISMATCH',
+        message: `Document ${relPath} is missing an evaluation state fingerprint (<!-- state_fingerprint: <sha256> -->)`,
+        file: relPath,
+        line: 1,
+      });
+    } else {
+      const recordedFp = fpMatch[1];
+      if (recordedFp !== expectedFingerprint) {
+        let fpLine = 1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].includes(recordedFp)) {
+            fpLine = i + 1;
+            break;
+          }
+        }
+        defects.push({
+          type: 'COMPLETION_CLAIM_MISMATCH',
+          message: `Recorded state fingerprint (${recordedFp}) does not match current state.json fingerprint (${expectedFingerprint}) — state.json has changed or evaluation results are out of sync`,
+          file: relPath,
+          line: fpLine,
+        });
+      }
+    }
+  }
+
+  return defects;
+}
+
+// ============================================================================
 // UNIFIED AUDIT RUNNER
 // ============================================================================
 
 /**
- * Execute all five deterministic defect detectors across the repository.
+ * Execute all six deterministic defect detectors across the repository.
  *
  * @param {object} [options]
  * @returns {{passed: boolean, defects: Array<{type: string, message: string, file: string, line: number}>}}
@@ -712,6 +913,10 @@ function runAllAudits(options = {}) {
   const d5 = auditClaimEvidenceMismatch(options.d5);
   allDefects.push(...d5);
 
+  // Detector 6: Completion claim mismatch & state fingerprint
+  const d6 = auditCompletionClaimMismatch(options.d6);
+  allDefects.push(...d6);
+
   return {
     passed: allDefects.length === 0,
     defects: allDefects,
@@ -722,7 +927,7 @@ function runAllAudits(options = {}) {
 if (require.main === module) {
   console.log('================================================================================');
   console.log('TANDEM DETERMINISTIC REPOSITORY AUDITOR');
-  console.log('Validating against 5 critical defect classes...');
+  console.log('Validating against 6 critical defect classes...');
   console.log('================================================================================\n');
 
   const result = runAllAudits();
@@ -740,7 +945,8 @@ if (require.main === module) {
     console.log('✔ Grader reachable by candidate: 0 defects');
     console.log('✔ Post-hoc-only enforcement: 0 defects');
     console.log('✔ Claim-evidence mismatch: 0 defects');
-    console.log('\nTANDEM AUDIT: All 5 detectors passed, 0 defects found.\n');
+    console.log('✔ Completion claim & fingerprint consistency: 0 defects');
+    console.log('\nTANDEM AUDIT: All 6 detectors passed, 0 defects found.\n');
     process.exit(0);
   }
 }
@@ -751,5 +957,7 @@ module.exports = {
   auditGraderReachable,
   auditPostHocOnlyEnforcement,
   auditClaimEvidenceMismatch,
+  auditCompletionClaimMismatch,
+  computeStateFingerprint,
   runAllAudits,
 };

@@ -87,8 +87,11 @@ Numeric resource ceilings per action:
 
 ## IB-04: Paired Evaluation Protocol & Decision Criteria
 
+<!-- state_fingerprint: 5189fbd1361e37cfe9aa3029e6c5e8a004d7343349f8664bc42074604fcd672d -->
+
 - **Protocol Specification:** `docs/PAIRED_EVALUATION.md` (30 paired tasks, commit `afa46cd`)
 - **Evaluation Results Document:** `docs/PAIRED_EVALUATION_RESULTS.md`
+- **State Fingerprint:** `5189fbd1361e37cfe9aa3029e6c5e8a004d7343349f8664bc42074604fcd672d`
 - **Primary Metric:** All-started pass rate ($P = S / N$) across 2-stage verification (scope fencing + baseline non-regression + held-out acceptance grader).
 - **Decision State:** **DECIDED**
 - **Qualification State:** **QUALIFIED**

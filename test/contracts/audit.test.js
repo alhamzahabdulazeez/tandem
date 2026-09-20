@@ -2,14 +2,15 @@
 /**
  * Tests for Deterministic Repository Auditor (bin/audit.cjs).
  *
- * Verifies that each of the 5 defect detectors correctly fires on synthetic/seeded
+ * Verifies that each of the 6 defect detectors correctly fires on synthetic/seeded
  * defects and passes on compliant inputs:
  *   1. QUALIFIED without evidence
  *   2. Partial-sample reporting
  *   3. Grader reachable by candidate
  *   4. Post-hoc-only enforcement
  *   5. Claim-evidence mismatch
- *   6. Unified runAllAudits runner
+ *   6. Completion claim & fingerprint consistency
+ *   7. Unified runAllAudits runner
  */
 
 const assert = require('node:assert');
@@ -20,6 +21,8 @@ const {
   auditGraderReachable,
   auditPostHocOnlyEnforcement,
   auditClaimEvidenceMismatch,
+  auditCompletionClaimMismatch,
+  computeStateFingerprint,
   runAllAudits,
 } = require('../../bin/audit.cjs');
 
@@ -271,6 +274,134 @@ module.exports = { Tandem };
     });
 
     assert.strictEqual(defects.length, 0, 'Expected zero defects for matching claims and evidence');
+  });
+
+  group('Auditor Detector 6: Completion claim & fingerprint consistency');
+
+  t('fires when document claims all 60 runs completed but state.json has incomplete/invalid runs', () => {
+    const mockState = {
+      baseline_commit: 'afa46cd',
+      total_tasks: 30,
+      total_runs: 60,
+      completed_runs: 41,
+      invalid_runs: 19,
+      runs: [
+        ...Array(41).fill(null).map((_, i) => ({ run_index: i + 1, arm: i % 2 === 0 ? 'A' : 'B', status: 'COMPLETED' })),
+        ...Array(19).fill(null).map((_, i) => ({ run_index: i + 42, arm: i % 2 === 0 ? 'A' : 'B', status: 'INVALID' })),
+      ],
+    };
+    const fp = computeStateFingerprint(mockState);
+
+    const seededMarkdown = `
+<!-- state_fingerprint: ${fp} -->
+# Evaluation Results
+We executed the evaluation and all 60 paired runs completed successfully.
+`;
+
+    const defects = auditCompletionClaimMismatch({
+      stateData: mockState,
+      documents: [{ filePath: 'docs/PAIRED_EVALUATION_RESULTS.md', content: seededMarkdown }],
+    });
+
+    assert.ok(defects.length >= 1, 'Expected defect when claiming all 60 completed with only 41 completed runs');
+    const d = defects.find((x) => x.type === 'COMPLETION_CLAIM_MISMATCH');
+    assert.ok(d, 'Expected COMPLETION_CLAIM_MISMATCH defect');
+    assert.ok(d.message.includes('41 completed'));
+  });
+
+  t('fires when document is missing state fingerprint', () => {
+    const mockState = {
+      baseline_commit: 'afa46cd',
+      total_tasks: 30,
+      total_runs: 60,
+      completed_runs: 41,
+      invalid_runs: 19,
+      runs: [],
+    };
+
+    const seededMarkdown = `
+# Evaluation Results
+- Arm A completed: 22
+- Arm B completed: 19
+`;
+
+    const defects = auditCompletionClaimMismatch({
+      stateData: mockState,
+      documents: [{ filePath: 'docs/PAIRED_EVALUATION_RESULTS.md', content: seededMarkdown }],
+    });
+
+    assert.ok(defects.length >= 1, 'Expected defect for missing fingerprint');
+    const d = defects.find((x) => x.type === 'COMPLETION_CLAIM_MISMATCH');
+    assert.ok(d, 'Expected COMPLETION_CLAIM_MISMATCH defect');
+    assert.ok(d.message.includes('missing an evaluation state fingerprint'));
+  });
+
+  t('fires when state fingerprint in document does not match updated state.json', () => {
+    const mockStateBefore = {
+      baseline_commit: 'afa46cd',
+      total_tasks: 30,
+      total_runs: 60,
+      completed_runs: 40,
+      invalid_runs: 0,
+      runs: Array(40).fill(null).map((_, i) => ({ run_index: i + 1, arm: 'A', status: 'COMPLETED' })),
+    };
+    const oldFp = computeStateFingerprint(mockStateBefore);
+
+    // Now state is updated with a 41st run (denominator/data changed)
+    const mockStateAfter = {
+      baseline_commit: 'afa46cd',
+      total_tasks: 30,
+      total_runs: 60,
+      completed_runs: 41,
+      invalid_runs: 0,
+      runs: Array(41).fill(null).map((_, i) => ({ run_index: i + 1, arm: 'A', status: 'COMPLETED' })),
+    };
+
+    const seededMarkdown = `
+<!-- state_fingerprint: ${oldFp} -->
+# Evaluation Results
+- Completed valid trials: 40
+`;
+
+    const defects = auditCompletionClaimMismatch({
+      stateData: mockStateAfter,
+      documents: [{ filePath: 'docs/PAIRED_EVALUATION_RESULTS.md', content: seededMarkdown }],
+    });
+
+    assert.ok(defects.length >= 1, 'Expected defect for fingerprint mismatch when state changes');
+    const d = defects.find((x) => x.type === 'COMPLETION_CLAIM_MISMATCH');
+    assert.ok(d, 'Expected COMPLETION_CLAIM_MISMATCH defect');
+    assert.ok(d.message.includes('does not match current state.json fingerprint'));
+  });
+
+  t('passes when completion claims and state fingerprint strictly match state.json', () => {
+    const mockState = {
+      baseline_commit: 'afa46cd',
+      total_tasks: 30,
+      total_runs: 60,
+      completed_runs: 41,
+      invalid_runs: 19,
+      runs: [
+        ...Array(41).fill(null).map((_, i) => ({ run_index: i + 1, arm: i % 2 === 0 ? 'A' : 'B', status: 'COMPLETED' })),
+        ...Array(19).fill(null).map((_, i) => ({ run_index: i + 42, arm: i % 2 === 0 ? 'A' : 'B', status: 'INVALID' })),
+      ],
+    };
+    const fp = computeStateFingerprint(mockState);
+
+    const validMarkdown = `
+<!-- state_fingerprint: ${fp} -->
+# Evaluation Results
+- Total scheduled runs: 60
+- Completed valid trials: 41 (22 in Arm A, 19 in Arm B)
+- Invalid timeout runs: 19 (8 in Arm A, 11 in Arm B)
+`;
+
+    const defects = auditCompletionClaimMismatch({
+      stateData: mockState,
+      documents: [{ filePath: 'docs/PAIRED_EVALUATION_RESULTS.md', content: validMarkdown }],
+    });
+
+    assert.strictEqual(defects.length, 0, 'Expected zero defects for matching state fingerprint and claims');
   });
 
   group('Auditor Integration: Live repository audit');

@@ -1,9 +1,12 @@
 # TANDEM Paired Evaluation Results: IB-04 Execution Record
 
+<!-- state_fingerprint: 5189fbd1361e37cfe9aa3029e6c5e8a004d7343349f8664bc42074604fcd672d -->
+
 **Document Type:** PAIRED_EVALUATION_RESULTS_V1  
 **Blocker ID:** `IB-04` (Paired Evaluation Protocol & Decision Criteria)  
 **Specification Document:** `docs/PAIRED_EVALUATION.md`  
 **Anchor Commit:** `afa46cd68b1a2a616f5daff0ad2ba737ec9997d2` (`afa46cd`)  
+**State Fingerprint:** `5189fbd1361e37cfe9aa3029e6c5e8a004d7343349f8664bc42074604fcd672d`  
 **Evaluation Date:** 2026-09-19  
 **Decision Verdict:** **QUALIFIED (Scope Compliance Superiority Under Frozen Protocol)**  
 
