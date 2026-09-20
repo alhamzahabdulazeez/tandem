@@ -52,6 +52,7 @@ class Tandem {
     this.options = (typeof options === 'object' && options !== null) ? options : {};
     this.ceilings = Object.freeze({ ...BC.DEFAULT_CEILINGS, ...(ceilings || {}) });
     this.counters = BC.create(this.ceilings);
+    this.scopeRefusals = {};
   }
 
   /** Resolve active slice allowed files allow-list from options, ceilings, cfg, or env */
@@ -110,6 +111,7 @@ class Tandem {
     this.state.disabled = {};
     this.state.gates = null;
     this.counters = BC.create(this.ceilings);
+    this.scopeRefusals = {};
     this.save();
     const parts = [RULES];
     if (this.conventions) parts.push('Project conventions:\n' + this.conventions);
@@ -166,6 +168,18 @@ class Tandem {
     const e = this.enrich(rawEvent);
     const mutating = e.kind === 'write' || e.kind === 'edit';
 
+    if (!this.counters) {
+      this.counters = BC.create(this.ceilings);
+    }
+    if (!this.scopeRefusals) {
+      this.scopeRefusals = {};
+    }
+
+    // IB-03 Budget Dimensions Tracking
+    // 1. Tool calls
+    const toolName = rawEvent.name || rawEvent.tool || rawEvent.toolName || e.name || e.tool || e.kind || 'unknown';
+    this.counters = BC.countToolCall(this.counters, toolName);
+
     // Write-time mutation scope fencing: block any write/edit outside active slice allow-list
     if (mutating) {
       const allowed = this.getAllowedFiles();
@@ -181,10 +195,20 @@ class Tandem {
           path.relative(this.cwd, path.resolve(this.cwd, f)).split(path.sep).join('/')
         );
         if (!normAllowed.includes(e.file)) {
+          const fileKey = e.file;
+          this.scopeRefusals[fileKey] = (this.scopeRefusals[fileKey] || 0) + 1;
+          const count = this.scopeRefusals[fileKey];
+          const ceiling = Number(this.ceilings.toolCalls || (this.counters.ceilings && this.counters.ceilings.toolCalls) || 20);
+          const remaining = Math.max(0, ceiling - this.counters.toolCalls);
+          const writableList = allowed.join(', ');
+          let reason = `DISALLOWED_MUTATION: ${e.file} is outside allowed slice scope (${writableList}). Writable files: ${writableList}. Implement the change directly in ${writableList} instead.`;
+          if (count >= 2) {
+            reason += ` Remaining tool-call budget: ${remaining} calls.`;
+          }
           return {
             block: true,
             points: [],
-            reason: `DISALLOWED_MUTATION: ${e.file} is outside allowed slice scope (${allowed.join(', ')})`,
+            reason,
           };
         }
       } else if (e.file && !CFG.inWorkingSet(e.file, this.cfg)) {
@@ -192,15 +216,6 @@ class Tandem {
           reason: `${e.file} is outside the working set (${this.cfg.workingSet.join(', ')}). Write there instead.` };
       }
     }
-
-    if (!this.counters) {
-      this.counters = BC.create(this.ceilings);
-    }
-
-    // IB-03 Budget Dimensions Tracking
-    // 1. Tool calls
-    const toolName = rawEvent.name || rawEvent.tool || rawEvent.toolName || e.name || e.tool || e.kind || 'unknown';
-    this.counters = BC.countToolCall(this.counters, toolName);
 
     // 2. Files read (unique paths)
     if (e.kind === 'read' && e.file) {

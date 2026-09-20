@@ -309,8 +309,11 @@ module.exports = function run(t, group) {
     assert.strictEqual(writeVerdict.block, true, 'Write to test/run.cjs must be blocked');
     assert.ok(writeVerdict.reason.includes('DISALLOWED_MUTATION'));
     assert.ok(writeVerdict.reason.includes('test/run.cjs is outside allowed slice scope'));
+    assert.ok(writeVerdict.reason.includes('Writable files: src/gates/detect.cjs'));
+    assert.ok(writeVerdict.reason.includes('Implement the change directly in src/gates/detect.cjs instead'));
+    assert.strictEqual(writeVerdict.reason.includes('Remaining tool-call budget'), false, 'First refusal must not have budget escalation');
 
-    // 2. Attempt edit to test/run.cjs
+    // 2. Attempt edit to test/run.cjs (second refusal on same file in session)
     const editVerdict = tandem.beforeTool({
       tool: 'edit',
       name: 'edit',
@@ -321,6 +324,9 @@ module.exports = function run(t, group) {
     });
     assert.strictEqual(editVerdict.block, true, 'Edit to test/run.cjs must be blocked');
     assert.ok(editVerdict.reason.includes('DISALLOWED_MUTATION'));
+    assert.ok(editVerdict.reason.includes('Writable files: src/gates/detect.cjs'));
+    assert.ok(editVerdict.reason.includes('Implement the change directly in src/gates/detect.cjs instead'));
+    assert.ok(editVerdict.reason.includes('Remaining tool-call budget: 18 calls'), 'Second refusal must escalate with remaining budget');
 
     // 3. Attempt write to src/gates/detect.cjs (allowed)
     const allowedVerdict = tandem.beforeTool({
