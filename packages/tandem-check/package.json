@@ -1,0 +1,22 @@
+{
+  "name": "tandem-check",
+  "version": "0.1.0",
+  "description": "Check what an uncommitted change put at risk — model-free, zero-config.",
+  "main": "index.cjs",
+  "bin": {
+    "tandem-check": "./bin/check.cjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "git",
+    "diff",
+    "risk",
+    "blast-radius",
+    "test-weakening",
+    "code-review"
+  ],
+  "author": "",
+  "license": "MIT"
+}
