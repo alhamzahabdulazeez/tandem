@@ -25,7 +25,12 @@ The primary empirical finding of the IB-04 paired evaluation is that **Tandem do
    - **Arm B:** $15 / 15$ completed runs remained strictly within scope ($100.00\%$). Tandem intercepted $16$ unauthorized write attempts to `test/run.cjs` at write-time, returning a refusal that guided the candidate to modify only the authorized target module.
 3. **Pass-Rate Delta as Downstream Consequence ($\Delta P = +73.33\%$):**  
    The measured overall pass rate delta ($\Delta P = +73.33\%$, $0.00\%$ vs $73.33\%$) is **strictly the downstream consequence of write-time scope enforcement preventing test harness tampering**. In Arm A, 12 correct solutions were discarded solely because the unassisted model modified `test/run.cjs`. In Arm B, Tandem prevented those out-of-scope edits at write-time, enabling the model's correct solutions to be preserved and accepted.
-4. **Preserved Disclosures:**  
+4. **Mutation Footprint Reduction ($0.35\times$ Change Size Ratio):**  
+   In addition to preventing invalid edits, write-time scope containment reduced code churn by $65.09\%$ ($0.35\times$ relative change size):
+   - **Arm A (Baseline / Unassisted):** Mean of $27.69$ lines changed ($+26.50$ added / $-1.19$ removed) across an average of $2.00$ files changed, driven by unassisted sprawling into test harnesses and duplicate test definitions.
+   - **Arm B (Tandem-Assisted):** Mean of $9.67$ lines changed ($+8.13$ added / $-1.53$ removed) confined strictly to an average of $1.00$ file changed.
+   - **Ratio ($0.35\times$):** Tandem produced surgical, bounded mutations ($0.35\times$ the change size of the baseline), focusing candidate edits strictly within the target implementation module without unnecessary harness churn.
+5. **Preserved Disclosures:**  
    - **Resource Overhead:** $1.08\times$ tool call ratio ($18.00$ vs $16.69$) and $1.09\times$ wall-clock time ratio ($91.8\text{ s}$ vs $84.6\text{ s}$), well within the frozen $\le 1.80\times$ ceiling.
    - **Timeout Rate:** $12$ of $43$ attempted runs ($27.9\%$) timed out at the 120s ceiling due to gateway stalls without initiating tool execution, recorded as `INVALID` per protocol.
    - **Structural Asymmetry:** Arm A had no write-time scope prevention mechanism by design (`TANDEM_HOOKS=off`), making this an evaluation of an enforced supervisory pipeline against an unenforced baseline.
@@ -51,6 +56,7 @@ All metrics are computed across all completed valid trials ($N=31$) recorded in 
 | **Mean Tool Calls** | $16.69$ calls | $18.00$ calls | Resource ratio $\le 1.80\times$ | **PASS (1.08×)** |
 | **Mean Wall Time** | $84.6\text{ s}$ ($84,608\text{ ms}$) | $91.8\text{ s}$ ($91,850\text{ ms}$) | Resource ratio $\le 1.80\times$ | **PASS (1.09×)** |
 | **Mean Lines Changed** | $27.69$ lines | $9.67$ lines | Bounded mutation footprint | **PASS (0.35×)** |
+| **Mean Files Changed** | $2.00$ files | $1.00$ files | Single-file containment | **PASS (0.50×)** |
 
 ---
 
@@ -70,7 +76,10 @@ Under PRD §23, §24 (T-14 Paired Value), and `docs/PAIRED_EVALUATION.md` §4:
 4. **Overhead Ceiling ($\le 1.80\times$):**  
    $$\text{Tool Ratio} = \frac{18.00}{16.69} = 1.0787 \quad (1.08\times), \quad \text{Wall Time Ratio} = \frac{91.85}{84.61} = 1.0856 \quad (1.09\times)$$  
    Well within the permissible 1.80× bound. **MET.**
-5. **Safety & Integrity Hard Gates:**  
+5. **Mutation Footprint Reduction ($0.35\times$ Change Size Ratio):**  
+   $$\text{Lines Changed Ratio} = \frac{9.67}{27.69} = 0.3491 \quad (0.35\times)$$  
+   Arm B reduced code churn by $65.09\%$ by containing edits strictly within target modules, eliminating harness sprawl ($1.00$ vs $2.00$ files changed). **MET.**
+6. **Safety & Integrity Hard Gates:**  
    Zero security or unauthorized scope mutations occurred in Arm B. All Arm B mutations remained strictly within allowed task modules. **MET.**
 
 ---

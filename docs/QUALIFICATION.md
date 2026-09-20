@@ -9,7 +9,7 @@ This document records authoritative owner decisions resolving the initial blocke
 | **IB-01** | Runtime profile & containment | **DECIDED** | **QUALIFIED** (Docker runtime profile in CI) |
 | **IB-02** | First-slice baseline repository | **DECIDED** | **QUALIFIED** (Baseline commit `afa46cd`, RUN-IB02-005 passed both stages with write-time scope prevention) |
 | **IB-03** | Resource ceilings & reserve | **DECIDED** | **QUALIFIED** (Container limits & Tandem in-process budget counters enforced) |
-| **IB-04** | Paired evaluation protocol & criteria | **DECIDED** | **QUALIFIED** (Paired evaluation executed; scope compliance delta 100% vs 0%, ΔP = +73.33% downstream of scope prevention, equal solution quality 75.00% vs 73.33%, 1.08× overhead) |
+| **IB-04** | Paired evaluation protocol & criteria | **DECIDED** | **QUALIFIED** (Paired evaluation executed; scope compliance delta 100% vs 0%, ΔP = +73.33% downstream of scope prevention, equal solution quality 75.00% vs 73.33%, 0.35× lines changed ratio, 1.08× overhead) |
 
 > **Authoritative Invariant:** All four initial blockers (**IB-01**, **IB-02**, **IB-03**, **IB-04**) are now **QUALIFIED**. Android / Termux remains strictly development-only and NOT QUALIFIED.
 
@@ -98,6 +98,7 @@ Numeric resource ceilings per action:
   - **Meaningful Benefit ($\Delta P \ge +15.0\%$):** $\Delta P = +73.33\%$ (exceeds frozen threshold).
   - **Uncertainty Decision Rule:** 95% Wilson intervals are non-overlapping ($\text{CI}_{A,\text{high}} = 19.36\% < \text{CI}_{B,\text{low}} = 48.05\%$).
   - **Resource Overhead:** $1.08\times$ tool call ratio ($18.00 / 16.69$) and $1.09\times$ wall time ratio, strictly within the $1.80\times$ maximum ceiling.
+  - **Mutation Footprint Reduction:** $0.35\times$ lines changed ratio ($9.67$ vs $27.69$ lines), reflecting a $65.09\%$ reduction in code churn due to strict write-time scope containment ($1.00$ vs $2.00$ files changed).
   - **Supervisory Scope Fencing Events:** 16 write-time scope blocks fired in Arm B (`src/index.cjs` `beforeTool`), intercepting out-of-scope edits to `test/run.cjs` and allowing candidate adaptation; Arm A had 0 scope blocks available.
 - **Honest Scope-Discipline Interpretation & Limitations:**
   - **Causal Mechanism:** The measured benefit is strictly **write-time scope discipline**, not model solution quality. Tandem prevented out-of-scope mutations (e.g. test harness tampering) that invalidated 100% of completed Arm A runs.
@@ -114,6 +115,6 @@ Numeric resource ceilings per action:
 3. Containment proof verified in CI (run `35397253342`, commit `a2187aa`) confirming network isolation, PID isolation, cgroup limits, and read-only root — establishing IB-01 as **QUALIFIED**.
 4. Resource ceilings and budget counter enforcement verified via container runtime limits (CI run `35405783410`, commit `fc02521`) and Tandem in-process budget enforcement with 20% reserve (commit `6bf6e7b`, suite at 1149 passed) — establishing IB-03 as **QUALIFIED**.
 5. First-slice baseline repository verification executed and verified against anchor commit `afa46cd` via run `RUN-IB02-005` (commit `e69080c`) with write-time scope prevention (fired at tool call 9), non-regression baseline (111/111), and held-out acceptance grader (5/5) — establishing **IB-02** as **QUALIFIED**.
-6. Paired evaluation protocol executed against anchor commit `afa46cd` via `bench/paired/runner.cjs` (`docs/PAIRED_EVALUATION_RESULTS.md`) demonstrating $\Delta P = +73.33\%$, non-overlapping Wilson CIs ($[0\%, 19.36\%]$ vs $[48.05\%, 89.10\%]$), $1.08\times$ resource overhead, and 16 write-time scope blocks fired — establishing **IB-04** as **QUALIFIED**.
+6. Paired evaluation protocol executed against anchor commit `afa46cd` via `bench/paired/runner.cjs` (`docs/PAIRED_EVALUATION_RESULTS.md`) demonstrating $\Delta P = +73.33\%$, non-overlapping Wilson CIs ($[0\%, 19.36\%]$ vs $[48.05\%, 89.10\%]$), $0.35\times$ mutation footprint ratio ($9.67$ vs $27.69$ lines), $1.08\times$ resource overhead, and 16 write-time scope blocks fired — establishing **IB-04** as **QUALIFIED**.
 7. All four initial blockers (**IB-01**, **IB-02**, **IB-03**, **IB-04**) are now **QUALIFIED**.
 8. Android / Termux explicitly documented as development-only and NOT QUALIFIED.
