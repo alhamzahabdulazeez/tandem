@@ -161,4 +161,5 @@ Blocker **IB-04** is formally marked as **QUALIFIED** based on:
 2. Verification of scope compliance superiority ($100\%$ vs $0\%$, $\Delta P = +73.33\% \ge +15.0\%$).
 3. Non-overlapping 95% Wilson confidence intervals ($19.36\% < 48.05\%$).
 4. Bounded resource overhead ($1.08\times \le 1.80\times$).
-5. Honest documentation establishing write-time scope discipline as the sole causal mechanism, with equal underlying solution quality across arms ($75.00\%$ vs $73.33\%$).
+5. Mutation footprint reduction ($0.35\times$ relative change size, $65.09\%$ code churn reduction).
+6. Honest documentation establishing write-time scope discipline as the sole causal mechanism, with equal underlying solution quality across arms ($75.00\%$ vs $73.33\%$).
