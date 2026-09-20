@@ -51,18 +51,75 @@ function extractImports(text) {
 }
 
 /** Resolve a relative specifier to a project file, trying the usual extensions. */
-function resolveRelative(fromFile, spec, files) {
-  if (!spec.startsWith('.')) return null;
+function resolveRelative(fromFile, spec, files, root) {
+  if (!spec || !spec.startsWith('.')) return null;
+  const set = new Set(files);
   const base = path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), spec));
-  const stripped = base.replace(/\.(js|mjs|cjs)$/, '');
-  const candidates = [
-    base, stripped,
+
+  function tryPkgMain(dir) {
+    try {
+      const pkgPath = root
+        ? path.join(root, dir === '.' ? '' : dir, 'package.json')
+        : path.resolve(dir === '.' ? '' : dir, 'package.json');
+      if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+        if (pkg && typeof pkg.main === 'string') {
+          const mainTarget = path.posix.normalize(path.posix.join(dir === '.' ? '' : dir, pkg.main));
+          const strippedMain = mainTarget.replace(/\.(js|jsx|ts|tsx|mjs|cjs|mts|cts)$/, '');
+          const mainCandidates = [
+            mainTarget,
+            strippedMain + '.ts', strippedMain + '.tsx', strippedMain + '.mts', strippedMain + '.cts',
+            strippedMain + '.js', strippedMain + '.jsx', strippedMain + '.mjs', strippedMain + '.cjs',
+            mainTarget + '/index.js', mainTarget + '/index.ts',
+            strippedMain + '/index.js', strippedMain + '/index.ts',
+          ];
+          for (const mc of mainCandidates) {
+            const norm = path.posix.normalize(mc);
+            if (set.has(norm)) return norm;
+          }
+        }
+      }
+    } catch {}
+    return null;
+  }
+
+  if (base === '.' || base === '') {
+    const pkgResult = tryPkgMain('.');
+    if (pkgResult) return pkgResult;
+    const indexCandidates = [
+      'index.ts', 'index.tsx', 'index.mts', 'index.cts',
+      'index.js', 'index.jsx', 'index.mjs', 'index.cjs',
+    ];
+    for (const c of indexCandidates) {
+      if (set.has(c)) return c;
+    }
+    return null;
+  }
+
+  if (set.has(base)) return base;
+
+  const stripped = base.replace(/\.(js|jsx|ts|tsx|mjs|cjs|mts|cts)$/, '');
+  const extCandidates = [
     stripped + '.ts', stripped + '.tsx', stripped + '.mts', stripped + '.cts',
     stripped + '.js', stripped + '.jsx', stripped + '.mjs', stripped + '.cjs',
-    stripped + '/index.ts', stripped + '/index.js',
   ];
-  const set = new Set(files);
-  for (const c of candidates) if (set.has(c)) return c;
+  for (const c of extCandidates) {
+    if (set.has(c)) return c;
+  }
+
+  const pkgResult = tryPkgMain(base);
+  if (pkgResult) return pkgResult;
+
+  const dirIndexCandidates = [
+    base + '/index.ts', base + '/index.tsx', base + '/index.mts', base + '/index.cts',
+    base + '/index.js', base + '/index.jsx', base + '/index.mjs', base + '/index.cjs',
+    stripped + '/index.ts', stripped + '/index.tsx', stripped + '/index.js', stripped + '/index.cjs',
+  ];
+  for (const c of dirIndexCandidates) {
+    const norm = path.posix.normalize(c);
+    if (set.has(norm)) return norm;
+  }
+
   return null;
 }
 
@@ -82,9 +139,10 @@ function build(root) {
     let text;
     try { text = fs.readFileSync(path.join(root, f), 'utf8'); } catch { continue; }
     for (const spec of extractImports(text)) {
-      const target = resolveRelative(f, spec, files);
+      const target = resolveRelative(f, spec, files, root);
       if (target) {
         imports[f].push(target);
+        if (!dependents[target]) dependents[target] = [];
         dependents[target].push(f);
       } else if (!spec.startsWith('.')) {
         external[f].push(spec);

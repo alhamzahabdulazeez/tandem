@@ -566,7 +566,8 @@ function formatReport(result) {
   }
 
   const lines = [];
-  lines.push('tandem-check\n');
+  lines.push('tandem-check');
+  lines.push('');
 
   // 1. What changed
   lines.push('What changed:');
@@ -578,52 +579,75 @@ function formatReport(result) {
     for (const c of result.changes) {
       totAdded += c.added;
       totRemoved += c.removed;
+    }
+    const visibleChanges = result.changes.slice(0, 5);
+    for (const c of visibleChanges) {
       lines.push(`  ${c.file} (+${c.added}, -${c.removed})`);
+    }
+    if (result.changes.length > 5) {
+      lines.push(`  +${result.changes.length - 5} more`);
     }
     lines.push(`  Total: ${result.changes.length} file(s) changed (+${totAdded}, -${totRemoved} lines)`);
   }
   lines.push('');
 
-  // 2. Blast radius
+  // 2. Blast radius (sorted by dependent count descending, ties alphabetical)
   lines.push('Blast radius:');
   const blastEntries = Object.entries(result.blastRadius);
   if (blastEntries.length === 0) {
     lines.push('  none');
   } else {
-    for (const [file, deps] of blastEntries) {
+    blastEntries.sort((a, b) => {
+      const diff = b[1].length - a[1].length;
+      if (diff !== 0) return diff;
+      return a[0].localeCompare(b[0]);
+    });
+    const visibleBlast = blastEntries.slice(0, 5);
+    for (const [file, deps] of visibleBlast) {
       if (deps.length > 0) {
         lines.push(`  ${file} (${deps.length} dependent${deps.length === 1 ? '' : 's'}):`);
-        for (const d of deps) {
+        const visibleDeps = deps.slice(0, 3);
+        for (const d of visibleDeps) {
           lines.push(`    ${d}`);
+        }
+        if (deps.length > 3) {
+          lines.push(`    +${deps.length - 3} more`);
         }
       } else {
         lines.push(`  ${file} (0 dependents)`);
       }
     }
+    if (blastEntries.length > 5) {
+      lines.push(`  +${blastEntries.length - 5} more`);
+    }
   }
   lines.push('');
 
   // 3. Uncovered changes
-  lines.push('Uncovered changes:');
-  if (result.uncovered.length === 0) {
-    lines.push('  none');
-  } else {
-    for (const u of result.uncovered) {
+  if (result.uncovered.length > 0) {
+    lines.push('Uncovered changes:');
+    const visibleUncovered = result.uncovered.slice(0, 5);
+    for (const u of visibleUncovered) {
       lines.push(`  ${u.message}`);
     }
+    if (result.uncovered.length > 5) {
+      lines.push(`  +${result.uncovered.length - 5} more`);
+    }
+    lines.push('');
   }
-  lines.push('');
 
   // 4. Test weakening
-  lines.push('Test weakening:');
-  if (result.testWeakening.length === 0) {
-    lines.push('  none');
-  } else {
-    for (const w of result.testWeakening) {
+  if (result.testWeakening.length > 0) {
+    lines.push('Test weakening:');
+    const visibleWeakening = result.testWeakening.slice(0, 5);
+    for (const w of visibleWeakening) {
       lines.push(`  ${w.message}`);
     }
+    if (result.testWeakening.length > 5) {
+      lines.push(`  +${result.testWeakening.length - 5} more`);
+    }
+    lines.push('');
   }
-  lines.push('');
 
   // 5. Verdict
   lines.push(`Verdict: ${result.verdict}`);

@@ -312,6 +312,67 @@ module.exports = function run(t, group) {
     assert.ok(!out.includes(dir), 'Output must not contain absolute paths');
   });
 
+  t('capped report stays under 25 lines for a change touching 30 files', () => {
+    const dir = makeTmpDir();
+    initGitRepo(dir);
+    for (let i = 1; i <= 30; i++) {
+      writeFile(dir, `file${i}.js`, `console.log(${i});\n`);
+    }
+    execFileSync('git', ['add', '.'], { cwd: dir, stdio: 'ignore' });
+    execFileSync('git', ['commit', '-m', 'commit 30 files'], { cwd: dir, stdio: 'ignore' });
+
+    for (let i = 1; i <= 30; i++) {
+      writeFile(dir, `file${i}.js`, `console.log(${i * 10});\n`);
+    }
+
+    let out = '';
+    try {
+      out = execFileSync(process.execPath, [BIN], { cwd: dir, encoding: 'utf8' });
+    } catch (e) {
+      out = e.stdout || '';
+    }
+
+    const lines = out.trim().split('\n');
+    assert.ok(lines.length < 25, `Expected report under 25 lines, got ${lines.length} lines:\n${out}`);
+    assert.ok(out.includes('+25 more'), 'Expected +25 more in output');
+    assert.ok(out.includes('Total: 30 file(s) changed'), 'Expected Total: 30 file(s) changed in output');
+  });
+
+  t('resolves require("..") to package.json main file', () => {
+    const dir = makeTmpDir();
+    initGitRepo(dir);
+    commitFile(dir, 'package.json', JSON.stringify({ name: 'pkg', main: 'lib/custom-main.js' }, null, 2));
+    commitFile(dir, 'lib/custom-main.js', 'function main() { return 42; }\nmodule.exports = { main };\n');
+    commitFile(dir, 'test/test.js', 'const { main } = require("..");\n');
+
+    const graph = checkMod.depgraph.build(dir);
+    assert.deepStrictEqual(checkMod.depgraph.dependentsOf(graph, 'lib/custom-main.js'), ['test/test.js']);
+
+    // Also check when modified
+    writeFile(dir, 'lib/custom-main.js', 'function main() { return 43; }\nmodule.exports = { main };\n');
+
+    let out = '';
+    try {
+      out = execFileSync(process.execPath, [BIN], { cwd: dir, encoding: 'utf8' });
+    } catch (e) {
+      out = e.stdout || '';
+    }
+
+    assert.ok(out.includes('lib/custom-main.js (1 dependent):'), out);
+    assert.ok(out.includes('test/test.js'), out);
+  });
+
+  t('resolves require("..") to index.js when package.json main is omitted', () => {
+    const dir = makeTmpDir();
+    initGitRepo(dir);
+    commitFile(dir, 'package.json', JSON.stringify({ name: 'fresh-demo' }, null, 2));
+    commitFile(dir, 'index.js', 'function fresh() { return true; }\nmodule.exports = { fresh };\n');
+    commitFile(dir, 'test/fresh.test.js', 'const fresh = require("..");\n');
+
+    const graph = checkMod.depgraph.build(dir);
+    assert.deepStrictEqual(checkMod.depgraph.dependentsOf(graph, 'index.js'), ['test/fresh.test.js']);
+  });
+
   group('tandem-check exported library API');
 
   t('exports public API functions and helpers', () => {
