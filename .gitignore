@@ -3,3 +3,5 @@ node_modules/
 bench-results/
 .prepared/
 *.log
+bench/external/candidates/
+bench/external/repos/

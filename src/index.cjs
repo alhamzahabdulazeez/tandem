@@ -187,12 +187,10 @@ class Tandem {
             reason: `DISALLOWED_MUTATION: ${e.file} is outside allowed slice scope (${allowed.join(', ')})`,
           };
         }
+      } else if (e.file && !CFG.inWorkingSet(e.file, this.cfg)) {
+        return { block: true, points: [],
+          reason: `${e.file} is outside the working set (${this.cfg.workingSet.join(', ')}). Write there instead.` };
       }
-    }
-
-    if (mutating && e.file && !CFG.inWorkingSet(e.file, this.cfg)) {
-      return { block: true, points: [],
-        reason: `${e.file} is outside the working set (${this.cfg.workingSet.join(', ')}). Write there instead.` };
     }
 
     if (!this.counters) {

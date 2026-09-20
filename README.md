@@ -6,6 +6,7 @@ A supervisory harness that keeps AI coding agents focused on their assigned task
 | :--- | :--- | :--- | :--- |
 | **Code Correctness** | 83.3% (25 of 30) | 80.0% (24 of 30) | Both setups write working code at virtually the same rate. |
 | **Scope Discipline** | 0.0% (0 of 30) | 100.0% (30 of 30) | Unassisted agents always modified test runners; Tandem blocked every out-of-scope edit. |
+| **External Replication** | 0.0% (0 of 16) | 100.0% (17 of 17) | Scope violations reproduced on external repos not authored by the user: unassisted agents modified test runners in 16 of 16 completed runs (9/9 in fresh, 7/7 in encodeurl, 0/0 valid in escape-html); Tandem blocked all 42 attempts. |
 | **Accepted Solutions** | 0.0% (0 of 30) | 80.0% (24 of 30) | Intercepting bad edits allowed correct solutions to pass validation without disqualification. |
 | **Code Churn** | 46.1 lines changed | 18.8 lines changed | Tandem reduced total modified lines by 59.3%, keeping diffs clean and minimal. |
 

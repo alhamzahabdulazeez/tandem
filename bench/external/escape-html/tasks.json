@@ -1,0 +1,107 @@
+{
+  "document_type": "EXTERNAL_EVALUATION_TASKS_V1",
+  "repository": "component/escape-html",
+  "baseline_commit": "b42947eefa79efff01b3fe988c4c7e7b051ec8d8",
+  "tasks": [
+    {
+      "id": "ESCAPEHTML-P01",
+      "index": 1,
+      "title": "Support Escaping Backtick Characters",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/escape-html/graders/task-01.cjs",
+      "prompt": "Implement and export escapeHtml.withBackticks(string) in index.js that escapes HTML characters ('\"', '&', ''', '<', '>') and additionally escapes backtick characters ('`') to '&#96;'.",
+      "description": "Support backtick character escaping"
+    },
+    {
+      "id": "ESCAPEHTML-P02",
+      "index": 2,
+      "title": "Export unescape Helper Function",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/escape-html/graders/task-02.cjs",
+      "prompt": "Implement and export escapeHtml.unescape(string) in index.js that unescapes HTML entities (&quot;, &amp;, &#39;, &lt;, &gt;) back to their respective characters.",
+      "description": "Export unescape helper function"
+    },
+    {
+      "id": "ESCAPEHTML-P03",
+      "index": 3,
+      "title": "Export isEscapeNeeded Helper",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/escape-html/graders/task-03.cjs",
+      "prompt": "Implement and export escapeHtml.isEscapeNeeded(string) in index.js that returns boolean true if the input string contains any characters requiring HTML escaping, and false otherwise.",
+      "description": "Export isEscapeNeeded helper"
+    },
+    {
+      "id": "ESCAPEHTML-P04",
+      "index": 4,
+      "title": "Export attribute Safe Escaper",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/escape-html/graders/task-04.cjs",
+      "prompt": "Implement and export escapeHtml.attribute(string) in index.js that escapes characters for HTML attributes (escaping '\"', '&', ''', '<', '>').",
+      "description": "Export attribute safe escaper"
+    },
+    {
+      "id": "ESCAPEHTML-P05",
+      "index": 5,
+      "title": "Export Template Tag Literal Helper",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/escape-html/graders/task-05.cjs",
+      "prompt": "Implement and export escapeHtml.tag(strings, ...values) in index.js as an ES6 template tag function that automatically escapes interpolated expression values while leaving template literal string parts intact.",
+      "description": "Export template tag literal helper"
+    },
+    {
+      "id": "ESCAPEHTML-P06",
+      "index": 6,
+      "title": "Expose Package Version Property",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/escape-html/graders/task-06.cjs",
+      "prompt": "Expose a version property on the exported escapeHtml function (escapeHtml.version) in index.js set to the string '1.0.3'.",
+      "description": "Expose escapeHtml.version property"
+    },
+    {
+      "id": "ESCAPEHTML-P07",
+      "index": 7,
+      "title": "Support Null-Safe Escaping Method",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/escape-html/graders/task-07.cjs",
+      "prompt": "Implement and export escapeHtml.safe(string) in index.js that returns an empty string '' when input is null or undefined, and otherwise behaves like escapeHtml(string).",
+      "description": "Export null-safe escaping helper"
+    },
+    {
+      "id": "ESCAPEHTML-P08",
+      "index": 8,
+      "title": "Support Forward Slash Escaping",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/escape-html/graders/task-08.cjs",
+      "prompt": "Implement and export escapeHtml.withSlash(string) in index.js that escapes HTML characters and additionally escapes forward slash characters ('/') to '&#x2F;'.",
+      "description": "Support forward slash escaping"
+    },
+    {
+      "id": "ESCAPEHTML-P09",
+      "index": 9,
+      "title": "Export Escape Map Dictionary",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/escape-html/graders/task-09.cjs",
+      "prompt": "Export escapeHtml.escapeMap in index.js containing character-to-entity mappings for '\"', '&', ''', '<', and '>'.",
+      "description": "Export escapeMap dictionary"
+    },
+    {
+      "id": "ESCAPEHTML-P10",
+      "index": 10,
+      "title": "Support Custom Replacement Map",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/escape-html/graders/task-10.cjs",
+      "prompt": "Implement and export escapeHtml.custom(string, map) in index.js that replaces any characters present as keys in the provided map object with their corresponding replacement values.",
+      "description": "Export custom replacement map function"
+    }
+  ]
+}

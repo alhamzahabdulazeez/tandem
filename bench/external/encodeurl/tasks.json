@@ -1,0 +1,107 @@
+{
+  "document_type": "EXTERNAL_EVALUATION_TASKS_V1",
+  "repository": "pillarjs/encodeurl",
+  "baseline_commit": "059977240f83b724c75b4f8f684d583dd4779c48",
+  "tasks": [
+    {
+      "id": "ENCODEURL-P01",
+      "index": 1,
+      "title": "Support Custom Replacement for Unpaired Surrogates",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/encodeurl/graders/task-01.cjs",
+      "prompt": "Extend encodeUrl(url, options) in index.js so that if options.replacement is specified (e.g. options = { replacement: '?' }), unpaired surrogate pairs are replaced with options.replacement instead of the default '\\uFFFD'.",
+      "description": "Custom replacement string for unpaired surrogates"
+    },
+    {
+      "id": "ENCODEURL-P02",
+      "index": 2,
+      "title": "Export isEncoded Helper Function",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/encodeurl/graders/task-02.cjs",
+      "prompt": "Export an isEncoded(url) helper function as encodeUrl.isEncoded in index.js that returns true if the input URL requires no additional percent-encoding (i.e. encodeUrl(url) === String(url)), and false otherwise.",
+      "description": "Export isEncoded(url) helper"
+    },
+    {
+      "id": "ENCODEURL-P03",
+      "index": 3,
+      "title": "Export Internal RegExps",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/encodeurl/graders/task-03.cjs",
+      "prompt": "Export ENCODE_CHARS_REGEXP and UNMATCHED_SURROGATE_PAIR_REGEXP on encodeUrl as encodeUrl.ENCODE_CHARS_REGEXP and encodeUrl.UNMATCHED_SURROGATE_PAIR_REGEXP in index.js.",
+      "description": "Export internal RegExp constants"
+    },
+    {
+      "id": "ENCODEURL-P04",
+      "index": 4,
+      "title": "Export component Helper Method",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/encodeurl/graders/task-04.cjs",
+      "prompt": "Implement and export encodeUrl.component(str) in index.js that applies encodeURIComponent to non-URL code points while preserving existing valid percent-encoded hex sequences.",
+      "description": "Export encodeUrl.component method"
+    },
+    {
+      "id": "ENCODEURL-P05",
+      "index": 5,
+      "title": "Support Trim Option",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/encodeurl/graders/task-05.cjs",
+      "prompt": "Extend encodeUrl(url, options) in index.js to support options.trim. When options.trim === true, leading and trailing whitespace characters in the url are trimmed before encoding.",
+      "description": "Support options.trim in encodeUrl"
+    },
+    {
+      "id": "ENCODEURL-P06",
+      "index": 6,
+      "title": "Handle Non-String Inputs and Objects Cleanly",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/encodeurl/graders/task-06.cjs",
+      "prompt": "Ensure encodeUrl(url) in index.js handles null and undefined by returning empty string '' instead of stringifying them to 'null' or 'undefined'.",
+      "description": "Safe handling of null and undefined inputs"
+    },
+    {
+      "id": "ENCODEURL-P07",
+      "index": 7,
+      "title": "Export decodeUrl Safe Decoder Function",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/encodeurl/graders/task-07.cjs",
+      "prompt": "Implement and export encodeUrl.decodeUrl(url) in index.js which decodes percent-encoded UTF-8 sequences safely without throwing URIError on invalid sequences (invalid sequences are left intact or decoded with decodeURI fallback).",
+      "description": "Export safe decodeUrl helper function"
+    },
+    {
+      "id": "ENCODEURL-P08",
+      "index": 8,
+      "title": "Expose Package Version Property",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/encodeurl/graders/task-08.cjs",
+      "prompt": "Expose a version property on the exported encodeUrl function (encodeUrl.version) in index.js set to the string '2.0.0'.",
+      "description": "Expose encodeUrl.version property"
+    },
+    {
+      "id": "ENCODEURL-P09",
+      "index": 9,
+      "title": "Support Space as Plus Option",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/encodeurl/graders/task-09.cjs",
+      "prompt": "Extend encodeUrl(url, options) in index.js to support options.spaceAsPlus. When options.spaceAsPlus === true, raw space characters ' ' are encoded as '+' instead of '%20'.",
+      "description": "Support options.spaceAsPlus"
+    },
+    {
+      "id": "ENCODEURL-P10",
+      "index": 10,
+      "title": "Export isAllowedChar Helper",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/encodeurl/graders/task-10.cjs",
+      "prompt": "Implement and export encodeUrl.isAllowedChar(codePoint) in index.js that takes an integer character code and returns true if it is an allowed unencoded URL character per ENCODE_CHARS_REGEXP rules.",
+      "description": "Export isAllowedChar helper"
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "document_type": "EXTERNAL_EVALUATION_TASKS_V1",
+  "repository": "jshttp/fresh",
+  "baseline_commit": "ee7367318cf86a77e8259c63ee014ff0f8853437",
+  "tasks": [
+    {
+      "id": "FRESH-P01",
+      "index": 1,
+      "title": "Support max-age=0 in Cache-Control",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/fresh/graders/task-01.cjs",
+      "prompt": "Extend fresh(reqHeaders, resHeaders) in index.js to treat Cache-Control: max-age=0 as requesting a stale response (return false), even if ETag or Last-Modified match.",
+      "description": "Support max-age=0 in Cache-Control header"
+    },
+    {
+      "id": "FRESH-P02",
+      "index": 2,
+      "title": "Export parseHttpDate Helper",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/fresh/graders/task-02.cjs",
+      "prompt": "Export the internal parseHttpDate function as fresh.parseHttpDate (or module.exports.parseHttpDate) in index.js. It must parse a valid HTTP date string into epoch milliseconds, and return NaN for invalid dates or non-string inputs.",
+      "description": "Export parseHttpDate helper function"
+    },
+    {
+      "id": "FRESH-P03",
+      "index": 3,
+      "title": "Export parseTokenList Helper",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/fresh/graders/task-03.cjs",
+      "prompt": "Export the internal parseTokenList function as fresh.parseTokenList in index.js. It must parse comma-delimited HTTP header token strings, trimming surrounding spaces/tabs and returning an array of non-empty token strings.",
+      "description": "Export parseTokenList helper function"
+    },
+    {
+      "id": "FRESH-P04",
+      "index": 4,
+      "title": "Support If-Unmodified-Since Header",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/fresh/graders/task-04.cjs",
+      "prompt": "Extend fresh(reqHeaders, resHeaders) in index.js to support reqHeaders['if-unmodified-since']. If last-modified is present and strictly newer than if-unmodified-since, return false (stale). If last-modified is older or equal, return true (fresh).",
+      "description": "Support If-Unmodified-Since validation"
+    },
+    {
+      "id": "FRESH-P05",
+      "index": 5,
+      "title": "Export isETagMatch Helper",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/fresh/graders/task-05.cjs",
+      "prompt": "Implement and export isETagMatch(reqETag, resETag) as fresh.isETagMatch in index.js. It returns true if the entity tags match under weak or strong comparison per RFC 7232 (e.g. matching 'W/\"foo\"' with '\"foo\"', or exact matches), and false otherwise.",
+      "description": "Export isETagMatch(reqETag, resETag) RFC comparison"
+    },
+    {
+      "id": "FRESH-P06",
+      "index": 6,
+      "title": "Support s-maxage=0 in Cache-Control",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/fresh/graders/task-06.cjs",
+      "prompt": "Extend fresh(reqHeaders, resHeaders) in index.js to treat Cache-Control: s-maxage=0 as requesting stale response (return false).",
+      "description": "Support s-maxage=0 in Cache-Control header"
+    },
+    {
+      "id": "FRESH-P07",
+      "index": 7,
+      "title": "Export isFresh Request/Response Wrapper",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/fresh/graders/task-07.cjs",
+      "prompt": "Implement and export isFresh(req, res) as fresh.isFresh in index.js that accepts req and res objects (with .headers or .get() methods) and delegates to fresh(reqHeaders, resHeaders).",
+      "description": "Export isFresh(req, res) adapter function"
+    },
+    {
+      "id": "FRESH-P08",
+      "index": 8,
+      "title": "Handle Quoted Comma Tokens in ETag Lists",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/fresh/graders/task-08.cjs",
+      "prompt": "Update parseTokenList in index.js so that commas inside quoted ETag strings (e.g. '\"foo,bar\"', '\"baz\"') are not split as token delimiters.",
+      "description": "Support commas inside quoted ETags"
+    },
+    {
+      "id": "FRESH-P09",
+      "index": 9,
+      "title": "Support no-store in Cache-Control",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/fresh/graders/task-09.cjs",
+      "prompt": "Extend fresh(reqHeaders, resHeaders) in index.js to check for 'no-store' in reqHeaders['cache-control'] or resHeaders['cache-control'], returning false (stale) whenever present.",
+      "description": "Support no-store directive in Cache-Control"
+    },
+    {
+      "id": "FRESH-P10",
+      "index": 10,
+      "title": "Expose Package Version Property",
+      "target_file": "index.js",
+      "allowed_files": ["index.js"],
+      "grader_rel_path": "bench/external/fresh/graders/task-10.cjs",
+      "prompt": "Expose a version property on the exported fresh function (fresh.version) in index.js set to the semver string '2.0.0'.",
+      "description": "Expose fresh.version property"
+    }
+  ]
+}
