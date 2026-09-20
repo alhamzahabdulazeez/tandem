@@ -69,6 +69,26 @@ for (const file of files) {
   }
 }
 
+// Run deterministic repository auditor
+console.log('\n── Repository Audit (bin/audit.cjs) ──');
+try {
+  const { runAllAudits } = require('../bin/audit.cjs');
+  const auditResult = runAllAudits();
+  if (!auditResult.passed) {
+    for (const d of auditResult.defects) {
+      fail++;
+      failures.push(`Audit Defect [${d.type}]: ${d.message} (${d.file}:${d.line})`);
+    }
+    console.log(`Repository audit FAILED with ${auditResult.defects.length} defect(s)`);
+  } else {
+    pass++;
+    console.log('Repository audit PASSED (0 defects)');
+  }
+} catch (e) {
+  fail++;
+  failures.push(`Repository audit execution error\n       ${e.message}`);
+}
+
 console.log(`\nunits suite: ${pass} passed, ${fail} failed\n`);
 if (failures.length) {
   for (const f of failures) console.log('  FAIL ' + f);

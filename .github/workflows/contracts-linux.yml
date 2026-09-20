@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run repository audit
+        run: node bin/audit.cjs
+
       - name: Run test suite
         run: node test/all.cjs
 
@@ -351,6 +354,9 @@ jobs:
         with:
           name: containment-probe
           path: containment-probe.txt
+
+      - name: Run repository audit
+        run: node bin/audit.cjs
 
       - name: Run test suite
         run: node test/all.cjs
