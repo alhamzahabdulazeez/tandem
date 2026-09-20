@@ -98,6 +98,8 @@ function buildRunSchedule(tasks) {
       arm: 'A',
       tandem_hooks: 'off',
       status: 'PENDING',
+      attempt_count: 0,
+      permanently_invalid: false,
       passed: false,
       stage1_passed: false,
       stage2_passed: false,
@@ -124,6 +126,8 @@ function buildRunSchedule(tasks) {
       arm: 'B',
       tandem_hooks: 'on',
       status: 'PENDING',
+      attempt_count: 0,
+      permanently_invalid: false,
       passed: false,
       stage1_passed: false,
       stage2_passed: false,
@@ -153,6 +157,14 @@ function loadState() {
     try {
       const state = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
       if (state && Array.isArray(state.runs) && state.runs.length === 60) {
+        state.runs.forEach(r => {
+          if (r.attempt_count === undefined) {
+            r.attempt_count = r.status === 'PENDING' ? 0 : 1;
+          }
+          if (r.permanently_invalid === undefined) {
+            r.permanently_invalid = r.status === 'INVALID' && r.attempt_count >= 3;
+          }
+        });
         return state;
       }
     } catch {
@@ -486,6 +498,18 @@ function printSummary(state) {
   }
   console.log('');
 
+  const invalidRuns = (state.runs || []).filter(r => r.status === 'INVALID');
+  if (invalidRuns.length > 0) {
+    console.log('--- EXCLUDED RUNS (INVALID) ---');
+    for (const r of invalidRuns) {
+      const attempts = r.attempt_count || 1;
+      const permLabel = (attempts >= 3 || r.permanently_invalid) ? '[PERMANENTLY INVALID]' : `[Attempt ${attempts}/3]`;
+      const reason = r.stop_reason || r.error || 'UNKNOWN';
+      console.log(`  Run ${r.run_index.toString().padStart(2, ' ')}: Task=${r.task_id} Arm=${r.arm} Status=INVALID Attempts=${attempts} ${permLabel} Reason=${reason}`);
+    }
+    console.log('');
+  }
+
   console.log('--- ARM A (TANDEM_HOOKS=off, Baseline) ---');
   console.log(`  Trials:           ${summary.arm_A.trials}`);
   console.log(`  Successes:        ${summary.arm_A.successes}`);
@@ -515,7 +539,7 @@ function printSummary(state) {
 /**
  * Runs a single candidate session via Tandem adapter.
  */
-function runCandidateSession(workDir, task, arm, timeoutMs = 120000) {
+function runCandidateSession(workDir, task, arm, timeoutMs = 240000) {
   loadEnvDefaults();
   const hooksEnv = arm === 'B' ? 'on' : 'off';
   const env = {
@@ -607,15 +631,26 @@ function runCandidateSession(workDir, task, arm, timeoutMs = 120000) {
  */
 function executeRuns(state, options = {}) {
   const limit = options.limit !== undefined ? options.limit : Infinity;
-  const timeoutMs = options.timeoutMs || 120000;
+  const timeoutMs = options.timeoutMs || 240000;
+  const retryInvalid = Boolean(options.retryInvalid);
   const tasks = loadTasks();
   const taskMap = new Map(tasks.map(t => [t.id, t]));
 
   let executedCount = 0;
 
   for (const run of state.runs) {
-    if (run.status === 'COMPLETED' || run.status === 'INVALID') {
+    if (run.status === 'COMPLETED') {
       continue;
+    }
+    if (run.status === 'INVALID') {
+      if (!retryInvalid) {
+        continue;
+      }
+      const attempts = run.attempt_count || 1;
+      if (attempts >= 3 || run.permanently_invalid) {
+        run.permanently_invalid = true;
+        continue;
+      }
     }
     if (executedCount >= limit) {
       break;
@@ -626,7 +661,10 @@ function executeRuns(state, options = {}) {
       throw new Error(`Task ${run.task_id} not found in manifest`);
     }
 
-    console.log(`[IB-04 Runner] Starting Run ${run.run_index}/${state.total_runs}: Task=${task.id} (${task.title}) Arm=${run.arm} (Hooks=${run.tandem_hooks})`);
+    const currentAttempt = (run.attempt_count || 0) + 1;
+    run.attempt_count = currentAttempt;
+
+    console.log(`[IB-04 Runner] Starting Run ${run.run_index}/${state.total_runs} (Attempt ${currentAttempt}/3): Task=${task.id} (${task.title}) Arm=${run.arm} (Hooks=${run.tandem_hooks})`);
 
     const workDir = path.join(os.tmpdir(), `tandem-paired-${run.task_id}-${run.arm}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`);
 
@@ -642,13 +680,20 @@ function executeRuns(state, options = {}) {
         is_invalid: sessionResult.is_invalid
       });
 
-      console.log(`[IB-04 Runner] Completed Run ${run.run_index}: Status=${run.status} Passed=${run.passed} ToolCalls=${run.tool_calls} FilesRead=${run.files_read} FilesChanged=${run.files_changed} (+${run.lines_added}/-${run.lines_removed}) ScopeBlocks=${run.scope_blocks_fired} StopReason=${run.stop_reason} Time=${run.wall_time_ms}ms`);
+      if (run.status === 'INVALID' && run.attempt_count >= 3) {
+        run.permanently_invalid = true;
+      }
+
+      console.log(`[IB-04 Runner] Completed Run ${run.run_index}: Status=${run.status} Passed=${run.passed} ToolCalls=${run.tool_calls} FilesRead=${run.files_read} FilesChanged=${run.files_changed} (+${run.lines_added}/-${run.lines_removed}) ScopeBlocks=${run.scope_blocks_fired} StopReason=${run.stop_reason} Time=${run.wall_time_ms}ms Attempts=${run.attempt_count}${run.permanently_invalid ? ' (PERMANENTLY INVALID)' : ''}`);
     } catch (err) {
       run.status = 'INVALID';
       run.passed = false;
       run.error = 'RUNNER_EXECUTION_ERROR: ' + err.message;
       run.stop_reason = 'EXECUTION_ERROR';
       run.timestamp = new Date().toISOString();
+      if (run.attempt_count >= 3) {
+        run.permanently_invalid = true;
+      }
       console.error(`[IB-04 Runner] Error in Run ${run.run_index}:`, err.message);
     } finally {
       try {
@@ -674,6 +719,7 @@ if (require.main === module) {
   const isSummary = args.includes('--summary');
   const isReset = args.includes('--reset');
   const isRun = args.includes('--run');
+  const isRetryInvalid = args.includes('--retry-invalid');
 
   let limit = undefined;
   const limitIdx = args.indexOf('--limit');
@@ -686,6 +732,17 @@ if (require.main === module) {
     }
   }
 
+  let timeoutMs = 240000;
+  const timeoutIdx = args.indexOf('--timeout');
+  if (timeoutIdx !== -1 && args[timeoutIdx + 1]) {
+    timeoutMs = parseInt(args[timeoutIdx + 1], 10) * 1000;
+  } else {
+    const timeoutEq = args.find(a => a.startsWith('--timeout='));
+    if (timeoutEq) {
+      timeoutMs = parseInt(timeoutEq.split('=')[1], 10) * 1000;
+    }
+  }
+
   if (isReset && fs.existsSync(STATE_PATH)) {
     fs.unlinkSync(STATE_PATH);
     console.log('Reset paired evaluation state.');
@@ -695,7 +752,7 @@ if (require.main === module) {
 
   if (isRun) {
     try {
-      const executed = executeRuns(state, { limit });
+      const executed = executeRuns(state, { limit, retryInvalid: isRetryInvalid, timeoutMs });
       console.log(`\n[IB-04 Runner] Executed ${executed} run(s). Current status: ${state.completed_runs}/${state.total_runs} completed.`);
     } catch (err) {
       console.error('[IB-04 Runner] Fatal execution failure:', err);

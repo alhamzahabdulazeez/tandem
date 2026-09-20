@@ -141,4 +141,54 @@ module.exports = function run(t, group) {
     assert.strictEqual(state.runs.length, 60);
     assert.ok(state.summary && state.summary.arm_A && state.summary.arm_B);
   });
+
+  group('IB-04 Paired Evaluation: Retry & Invalid Execution Invariants');
+
+  t('executeRuns skips INVALID runs by default when retryInvalid is not specified', () => {
+    const mockState = {
+      baseline_commit: 'afa46cd',
+      total_tasks: 1,
+      total_runs: 1,
+      completed_runs: 0,
+      invalid_runs: 1,
+      runs: [
+        {
+          run_index: 1,
+          task_id: 'TASK-P01',
+          arm: 'A',
+          status: 'INVALID',
+          attempt_count: 1,
+          stop_reason: 'TIMEOUT',
+        },
+      ],
+    };
+
+    const executed = runner.executeRuns(mockState, { limit: 1 });
+    assert.strictEqual(executed, 0, 'Must not execute INVALID run when retryInvalid is false');
+    assert.strictEqual(mockState.runs[0].attempt_count, 1);
+  });
+
+  t('executeRuns permanently flags and excludes runs exceeding attempt limit (>= 3)', () => {
+    const mockState = {
+      baseline_commit: 'afa46cd',
+      total_tasks: 1,
+      total_runs: 1,
+      completed_runs: 0,
+      invalid_runs: 1,
+      runs: [
+        {
+          run_index: 1,
+          task_id: 'TASK-P01',
+          arm: 'A',
+          status: 'INVALID',
+          attempt_count: 3,
+          stop_reason: 'TIMEOUT',
+        },
+      ],
+    };
+
+    const executed = runner.executeRuns(mockState, { limit: 1, retryInvalid: true });
+    assert.strictEqual(executed, 0, 'Must not execute run when attempt_count >= 3');
+    assert.strictEqual(mockState.runs[0].permanently_invalid, true, 'Must mark permanently_invalid: true');
+  });
 };
