@@ -1,0 +1,12 @@
+{
+  "repo": "https://github.com/pillarjs/encodeurl",
+  "commit": "0599772",
+  "setup": "npm install --no-audit --no-fund",
+  "testCommand": "npm test",
+  "testPaths": ["test/"],
+  "tasks": [
+    { "id": "E1", "prompt": "encodeUrl should accept an optional second argument { encodeSpaceAsPlus: true } that encodes spaces as \"+\" instead of \"%20\". The default must not change. Implement it and make sure it works.", "grader": "graders/E1.cjs" },
+    { "id": "E2", "prompt": "encodeUrl(null) and encodeUrl(undefined) should return an empty string instead of \"null\" or \"undefined\". Implement it and make sure it works.", "grader": "graders/E2.cjs" },
+    { "id": "E3", "prompt": "Expose the regular expression used to find characters that need encoding as encodeUrl.ENCODE_CHARS_REGEXP so callers can reuse it. Implement it and make sure it works.", "grader": "graders/E3.cjs" }
+  ]
+}

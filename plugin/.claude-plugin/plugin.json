@@ -1,0 +1,11 @@
+{
+  "name": "tandem",
+  "displayName": "Tandem Autopilot",
+  "version": "0.2.0",
+  "description": "An autonomous supervision layer for Claude Code: keeps edits in scope, protects tests and secrets, blocks destructive commands, breaks loops, and refuses to finish until the project's own tests pass. Deterministic, no extra model calls.",
+  "author": { "name": "alhamzahabdulazeez", "url": "https://github.com/alhamzahabdulazeez" },
+  "homepage": "https://github.com/alhamzahabdulazeez/tandem",
+  "repository": "https://github.com/alhamzahabdulazeez/tandem",
+  "license": "MIT",
+  "keywords": ["verification", "guardrails", "tests", "autonomy", "hooks"]
+}
