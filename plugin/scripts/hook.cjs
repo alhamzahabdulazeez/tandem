@@ -55,7 +55,7 @@ function compactedInput(tool, ti, cfg) {
   const cmd = String(ti.command || '').trim();
   if (!C.isCompactable(cmd)) return null;
   const runner = U.toPosix(path.join(__dirname, 'run.cjs'));
-  return Object.assign({}, ti, { command: `node "${runner}" ${Buffer.from(cmd, 'utf8').toString('base64')}` });
+  return Object.assign({}, ti, { command: `node "${runner}" ${Buffer.from(C.baseCommand(cmd), 'utf8').toString('base64')}` });
 }
 function feedback(reason) { emit({ decision: 'block', reason }, { exitCode: 2, stderr: reason }); }
 function context(event, text) { emit({ hookSpecificOutput: { hookEventName: event, additionalContext: text } }); }
@@ -253,7 +253,7 @@ function onUserPrompt(input, root, dir, cfg) {
   session.promptCount += 1;
   session.prompts = (session.prompts || []).concat([prompt.slice(0, 300)]).slice(-6);
   session.hygieneShown = false;
-  if (cfg.checkpoints !== false) {
+  if (cfg.checkpoints !== false && !/^\s*\/tandem[:\s]/.test(prompt)) {
     try { const cp = CP.create(root, prompt); if (cp) session.checkpoint = cp.sha; } catch (e) { U.logLine(dir, `checkpoint failed: ${e.message}`); }
   }
   session.scope = S.derive(prompt, trackedFiles(root));

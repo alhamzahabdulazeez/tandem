@@ -143,12 +143,24 @@ const COMPACTABLE = [
   /^(?:make|gradle|\.\/gradlew|mvn|dotnet)\s+(?:test|build|check)\b/,
 ];
 
+// `| tail -n 20`, `| head -30`: the agent only wanted short output. Piping a test
+// run into tail can hide failures printed earlier and replaces the test's exit
+// code with tail's (0), so these are better served by the compactor.
+const TRIM_PIPE = /\s*(?:2>&1\s*)?\|\s*(?:tail|head)(?:\s+-n)?\s+-?\d+\s*$/;
+
+/** The command to actually run when it is compacted (a trailing tail/head is dropped). */
+function baseCommand(cmd) {
+  const c = String(cmd || '').trim();
+  return TRIM_PIPE.test(c) ? c.replace(TRIM_PIPE, '') : c;
+}
+
 /**
  * Return true when the whole command is one compactable invocation, optionally
- * after `cd <dir> &&`, with no pipe or redirect the agent chose itself.
+ * after `cd <dir> &&` and optionally piped into tail/head, with no other pipe
+ * or redirect the agent chose itself.
  */
 function isCompactable(cmd) {
-  const c = String(cmd || '').trim();
+  const c = baseCommand(cmd);
   if (!c || /[|<>`]|\$\(|;|\|\||&\s*$/.test(c.replace(/\s2>&1\b/g, ''))) return false;
   const parts = c.split('&&').map((s) => s.trim());
   const main = parts.pop();
@@ -156,4 +168,4 @@ function isCompactable(cmd) {
   return COMPACTABLE.some((re) => re.test(main.replace(/\s2>&1\b/, '')));
 }
 
-module.exports = { IDENTITY, compact, isCompactable, MIN_LINES, MIN_CHARS };
+module.exports = { IDENTITY, compact, isCompactable, baseCommand, MIN_LINES, MIN_CHARS };

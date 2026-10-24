@@ -46,7 +46,9 @@ try {
     const total = output.split('\n').length;
     const cwd = U.toPosix(process.cwd()).replace(/\/?$/, '/');
     const text = c.text.split(cwd).join('');
-    process.stdout.write(`${text}\n\n[Tandem: ${code === 0 ? 'passed' : `exit ${code}`}; output compacted ${total} lines -> ${c.text.split('\n').length}. Full log: ${U.toPosix(file)}]\n`);
+    const kept = c.text.split('\n').length;
+    const what = code === 0 ? 'the summary' : 'every line that names a failure, the context around them, and the summary';
+    process.stdout.write(`${text}\n\n[Tandem compacted this output (exit code ${code}): ${total} lines -> ${kept}, keeping ${what}. Full output: ${U.toPosix(file)}]\n`);
     printed = true;
     const sf = path.join(U.stateDir(root), 'compact-stats.json');
     const st = U.readJson(sf, { runs: 0, before: 0, after: 0 });

@@ -170,7 +170,9 @@ t('jest/vitest JSON report becomes a failure list', () => {
 });
 for (const cmd of ['npm test', 'pnpm run test:unit', 'npx vitest run', 'pytest -q', 'go test ./...', 'cargo test', 'cd pkg && npm test', 'npm test 2>&1', 'npx tsc --noEmit'])
   t(`compactable: ${cmd}`, () => assert.ok(C.isCompactable(cmd)));
-for (const cmd of ['npm test | tail -5', 'npm test > log.txt', 'node app.js', 'npm install', 'npm test; rm -rf x', 'echo $(npm test)', 'git status'])
+for (const cmd of ['npm test 2>&1 | tail -8', 'npm test | tail -n 20', 'pytest -q | head -40'])
+  t(`compactable (short-output pipe replaced, exit code kept): ${cmd}`, () => { assert.ok(C.isCompactable(cmd)); assert.doesNotMatch(C.baseCommand(cmd), /tail|head/); });
+for (const cmd of ['npm test | grep FAIL', 'npm test > log.txt', 'node app.js', 'npm install', 'npm test; rm -rf x', 'echo $(npm test)', 'git status'])
   t(`not compactable: ${cmd}`, () => assert.ok(!C.isCompactable(cmd)));
 
 // ------------------------------------------------------------ imports -----
@@ -284,10 +286,20 @@ t('the undo itself can be undone', () => {
   assert.strictEqual(fs.readFileSync(path.join(cpd, 'a.js'), 'utf8'), 'v3-by-agent\n');
   assert.ok(fs.existsSync(path.join(cpd, 'junk.js')));
 });
+t('undo skips a checkpoint identical to the current tree (e.g. one taken by the /tandem:undo request itself)', () => {
+  CP.create(cpd, '/tandem:undo');
+  const targets = CP.undoTargets(cpd);
+  assert.ok(targets.length >= 1);
+  assert.notStrictEqual(targets[0].tree, CP.currentTree(cpd));
+});
 t('tandem undo CLI reports what it changed back', () => {
   const r = spawnSync(process.execPath, [path.join(__dirname, '..', 'scripts', 'tandem.cjs'), 'undo', '1'], { cwd: cpd, encoding: 'utf8', env: Object.assign({}, process.env, { CLAUDE_PROJECT_DIR: cpd }) });
   assert.strictEqual(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /Restored the working tree[\s\S]*a\.js/);
+  const before = fs.readFileSync(path.join(cpd, 'a.js'), 'utf8');
+  const r2 = spawnSync(process.execPath, [path.join(__dirname, '..', 'scripts', 'tandem.cjs'), 'redo'], { cwd: cpd, encoding: 'utf8', env: Object.assign({}, process.env, { CLAUDE_PROJECT_DIR: cpd }) });
+  assert.match(r2.stdout, /Brought back/);
+  assert.notStrictEqual(fs.readFileSync(path.join(cpd, 'a.js'), 'utf8'), before);
 });
 fs.rmSync(cpd, { recursive: true, force: true });
 

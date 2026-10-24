@@ -5,6 +5,7 @@
  *
  *   tandem undo [n]        restore the working tree to the checkpoint taken at
  *                          the start of the last request (or n requests back)
+ *   tandem redo            reverse the last undo
  *   tandem checkpoints     list checkpoints
  *   tandem receipt         show the last verification receipt
  *   tandem stats           what Tandem did in this repository
@@ -37,15 +38,23 @@ if (cmd === 'checkpoints') {
   cps.forEach((c, i) => out(`${String(i + 1).padStart(2)}  ${rel(c.at).padEnd(12)} ${c.sha.slice(0, 8)}  ${c.label || ''}`));
 } else if (cmd === 'undo') {
   const n = Math.max(1, parseInt(arg || '1', 10) || 1);
-  const cps = CP.list(root).filter((c) => !/^state before tandem undo/.test(c.label));
+  const cps = CP.undoTargets(root);
   const target = cps[n - 1];
-  if (!target) { out(`tandem undo: no checkpoint #${n} (have ${cps.length}).`); process.exit(1); }
+  if (!target) { out(cps.length ? `tandem undo: only ${cps.length} earlier state(s) to go back to.` : 'tandem undo: nothing to undo; the working tree matches every checkpoint.'); process.exit(cps.length ? 1 : 0); }
   const r = CP.restore(root, target.sha);
   if (!r.ok) { out(`tandem undo failed: ${r.error}`); process.exit(1); }
   out(`Restored the working tree to the checkpoint from ${rel(target.at)}: "${target.label}".`);
   const touched = Array.from(new Set(r.changed.concat(r.removed)));
   out(touched.length ? `Files changed back: ${touched.slice(0, 30).join(', ')}${touched.length > 30 ? ` (+${touched.length - 30} more)` : ''}` : 'Nothing differed.');
-  if (r.safety) out(`The state before this undo is saved too: run "tandem undo" again to go back to it.`);
+  if (r.safety) out('The state before this undo is saved: /tandem:redo brings it back.');
+} else if (cmd === 'redo') {
+  const cur = CP.currentTree(root);
+  const back = CP.list(root).find((c) => /^state before tandem undo/.test(c.label) && c.tree !== cur);
+  if (!back) { out('tandem redo: no undo to reverse.'); process.exit(0); }
+  const r = CP.restore(root, back.sha);
+  if (!r.ok) { out(`tandem redo failed: ${r.error}`); process.exit(1); }
+  const touched = Array.from(new Set(r.changed.concat(r.removed)));
+  out(`Brought back the state from before the last undo (${rel(back.at)}).${touched.length ? ` Files: ${touched.slice(0, 30).join(', ')}` : ''}`);
 } else if (cmd === 'receipt') {
   const f = path.join(U.stateDir(root), 'last-receipt.md');
   out(fs.existsSync(f) ? fs.readFileSync(f, 'utf8').trim() : 'No receipt yet: Tandem writes one when Claude finishes a change.');
@@ -63,5 +72,5 @@ if (cmd === 'checkpoints') {
   out(`Test/build output compacted: ${comp.runs} run(s), ~${Math.round(comp.before / 4)} -> ~${Math.round(comp.after / 4)} tokens (estimated as chars/4)`);
   out(`Checkpoints kept: ${CP.list(root).length}`);
 } else {
-  out('Usage: tandem undo [n] | checkpoints | receipt | stats');
+  out('Usage: tandem undo [n] | redo | checkpoints | receipt | stats');
 }

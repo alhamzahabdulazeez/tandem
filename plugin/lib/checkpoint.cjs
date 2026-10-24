@@ -24,6 +24,20 @@ function gitDir(root) {
   return r.ok ? r.out : null;
 }
 
+/** Tree id of the working tree as it is now (nothing stored). */
+function currentTree(root) {
+  const gd = gitDir(root);
+  if (!gd) return null;
+  const tmpIndex = path.join(os.tmpdir(), `tandem-idx-c-${process.pid}-${Date.now()}`);
+  try {
+    try { fs.copyFileSync(path.join(gd, 'index'), tmpIndex); } catch { /* fresh repo */ }
+    const env = { GIT_INDEX_FILE: tmpIndex };
+    if (!g(root, ['add', '-A', '--', '.'], env).ok) return null;
+    const t = g(root, ['write-tree'], env);
+    return t.ok ? t.out : null;
+  } finally { try { fs.unlinkSync(tmpIndex); } catch { /* ignore */ } }
+}
+
 /** Snapshot the working tree. Returns { sha, tree } or null. */
 function create(root, label) {
   const gd = gitDir(root);
@@ -61,11 +75,11 @@ function create(root, label) {
 
 /** Newest first: [{ ref, sha, at, label }] */
 function list(root) {
-  const r = g(root, ['for-each-ref', '--sort=-refname', '--format=%(refname)%09%(objectname)%09%(contents:body)', REF]);
+  const r = g(root, ['for-each-ref', '--sort=-refname', '--format=%(refname)%09%(objectname)%09%(tree)%09%(contents:body)', REF]);
   if (!r.ok || !r.out) return [];
   return r.out.split('\n').filter((l) => /\/\d+\t/.test(l)).map((l) => {
-    const [ref, sha, ...body] = l.split('\t');
-    return { ref, sha, at: new Date(+ref.split('/').pop()).toISOString(), label: body.join(' ').trim().split('\n')[0] };
+    const [ref, sha, tree, ...body] = l.split('\t');
+    return { ref, sha, tree, at: new Date(+ref.split('/').pop()).toISOString(), label: body.join(' ').trim().split('\n')[0] };
   });
 }
 
@@ -98,4 +112,21 @@ function restore(root, sha) {
   return { ok: true, removed, restoredFrom: sha, safety: before && before.sha, changed };
 }
 
-module.exports = { create, list, restore, REF };
+/**
+ * Checkpoints an undo can go back to, newest first: the safety snapshots taken
+ * by undo itself and any snapshot identical to the current tree are skipped,
+ * so "undo" always changes something.
+ */
+function undoTargets(root) {
+  const cur = currentTree(root);
+  const seen = new Set([cur]);
+  const out = [];
+  for (const c of list(root)) {
+    if (/^state before tandem undo/.test(c.label) || seen.has(c.tree)) continue;
+    seen.add(c.tree);
+    out.push(c);
+  }
+  return out;
+}
+
+module.exports = { create, list, restore, undoTargets, currentTree, REF };
