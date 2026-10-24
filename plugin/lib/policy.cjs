@@ -160,19 +160,23 @@ const BASH_DENY = [
   { re: /\b(?:mkfs(?:\.\w+)?|dd\s+if=)|:\(\)\s*\{\s*:\|:&\s*\};:/, rule: 'destructive', why: 'destructive system command' },
   { re: /\b(?:npm|yarn|pnpm|bun)\s+publish\b|\bcargo\s+publish\b|\btwine\s+upload\b/, rule: 'publish', why: 'publishing a package is irreversible' },
   { re: /\b(?:cat|less|more|head|tail|bat|strings|base64|xxd|cp|scp)\b[^|;&]*(?:\.env(?:\.\w+)?\b|id_rsa|id_ed25519|\.pem\b|\.p12\b|\bcredentials\b)/, rule: 'secrets', why: 'this reads secret material' },
+  { re: /\b(?:node|deno|bun|python3?|py|perl|ruby)\b[^|;&]*\s-(?:e|c|p|-eval|-print)\b[^|;&]*(?:['"/](?:\.env(?:\.\w+)?|id_rsa|id_ed25519|[\w-]+\.pem|credentials)['"\s])/, rule: 'secrets', why: 'this reads secret material' },
   { re: /\.claude\/(?:settings(?:\.local)?\.json|tandem\.json)/, rule: 'supervisor-config', why: 'commands may not touch the supervisor configuration' },
 ];
 
 const SAFE_BASH = [
   /^(?:npm|pnpm|yarn|bun)\s+(?:test|t|run\s+(?:test|lint|build|typecheck|check|format)[\w:-]*)(?:\s|$)/,
   /^npx\s+(?:--no-install\s+)?(?:tsc|eslint|prettier|vitest|jest|mocha|biome|tandem-check)\b/,
-  /^node\s+(?:--test\b|--check\b|-e\b|-p\b)/,
+  // Never node -e / -p / python -c: inline code can write anywhere, so it is not "safe".
+  /^node\s+(?:--test\b|--check\b)/,
   /^(?:python3?|py)\s+-m\s+(?:pytest|unittest|py_compile|mypy|ruff|flake8)\b/,
   /^(?:pytest|mypy|ruff|flake8|tox)\b/,
   /^go\s+(?:test|vet|build)\b/,
   /^cargo\s+(?:test|check|build|clippy|fmt\s+--check)\b/,
-  /^git\s+(?:status|diff|log|show|branch|rev-parse|ls-files|blame|grep)\b/,
-  /^(?:ls|pwd|cat|head|tail|wc|grep|egrep|rg|find|tree|file|stat|which|echo|sort|uniq|diff|du|cut|tr|nl|less|more|true)\b/,
+  /^git\s+(?:status|diff|log|show|rev-parse|ls-files|blame|grep)\b(?![^|;&]*--output)/,
+  /^git\s+branch(?:\s+(?:-a|-r|-v|-vv|--list|--show-current|--contains\s+\S+))*\s*$/,
+  /^(?:ls|pwd|cat|head|tail|wc|grep|egrep|rg|find|tree|file|stat|which|echo|uniq|diff|du|cut|tr|nl|less|more|true)\b/,
+  /^sort\b(?![^|;&]*\s-o)/,
   /^sed\s+-n\b/,
 ];
 
@@ -184,6 +188,20 @@ function isSafeCommand(cmd) {
   if (/(?:^|\s)find\b[^|;&]*\s-(?:exec|execdir|delete|ok)\b/.test(cleaned)) return false;
   const segs = cleaned.split(/\|\||&&|;|\|/).map((x) => x.trim()).filter(Boolean);
   return segs.length > 0 && segs.every((seg) => SAFE_BASH.some((re) => re.test(seg.replace(/^cd\s+\S+\s*$/, 'true'))));
+}
+
+const INLINE_CODE = /\b(?:node|deno|bun)\s+(?:[^|;&]*\s)?(?:-e|-p|--eval|--print)\b|\b(?:python3?|py)\s+(?:[^|;&]*\s)?-c\b|\b(?:perl|ruby)\s+(?:[^|;&]*\s)?-[a-zA-Z]*e\b/;
+const INLINE_WRITE = /writeFile|appendFile|createWriteStream|unlink|rmSync|rmdir|renameSync|copyFile|truncate|open\s*\([^)]*['"][wa+]|\.write\(|os\.remove|shutil\.|Path\([^)]*\)\.(?:write|unlink)|File\.write|>>?\s*\$|\bprint\s*\{?\s*\$fh/;
+
+/** Quoted path-like strings inside inline code that also writes. */
+function inlineWriteTargets(cmd) {
+  if (!INLINE_CODE.test(cmd) || !INLINE_WRITE.test(cmd)) return [];
+  const out = [];
+  for (const m of cmd.matchAll(/(['"`])([^'"`\s]{1,200})\1/g)) {
+    const v = m[2].replace(/\\/g, '/');
+    if (/[./]/.test(v) && !/^\w+$/.test(v)) out.push(v);
+  }
+  return out;
 }
 
 /** Paths a shell command would write to (only for clear write forms). */
@@ -220,7 +238,7 @@ function decideBash(ctx) {
   }
 
   const testsAllowed = ctx.cfg.allowTestEdits === true || (ctx.cfg.allowTestEdits !== false && ctx.scope && ctx.scope.testsAllowed);
-  for (const t of shellWriteTargets(cmd)) {
+  for (const t of shellWriteTargets(cmd).concat(inlineWriteTargets(cmd))) {
     const rel = ctx.toRel ? ctx.toRel(t) : t;
     if (!rel) continue;
     if (isTestFile(rel) && !testsAllowed && !named.has(rel) && ctx.cfg.testPolicy !== 'free') {
@@ -257,5 +275,6 @@ module.exports = {
   decideWrite,
   decideBash,
   shellWriteTargets,
+  inlineWriteTargets,
   isSafeCommand,
 };

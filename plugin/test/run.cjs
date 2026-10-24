@@ -130,6 +130,17 @@ t('pipe into an unsafe command is not pre-approved', () => assert.strictEqual(B(
 t('find -delete is not pre-approved', () => assert.strictEqual(B('find . -name x -delete').decision, 'none'));
 t('sed -n is pre-approved, sed -i is not', () => { assert.strictEqual(B('sed -n 1,5p a.js').decision, 'allow'); assert.strictEqual(B("sed -i 's/a/b/' a.js").decision, 'none'); });
 t('command substitution is never pre-approved', () => assert.strictEqual(B('echo $(cat x)').decision, 'none'));
+t('node -e is never pre-approved', () => assert.strictEqual(B('node -e "console.log(1)"').decision, 'none'));
+t('python -c is never pre-approved', () => assert.strictEqual(B('python3 -c "print(1)"').decision, 'none'));
+t('node -e writing .env is blocked', () => assert.strictEqual(B(`node -e "require('fs').writeFileSync('.env','X=1')"`).rule, 'secrets'));
+t('node -e writing a test file is blocked', () => assert.strictEqual(B(`node -e "require('fs').writeFileSync('test/a.test.js','')"`).rule, 'test-readonly'));
+t('python -c writing a test file is blocked', () => assert.strictEqual(B(`python3 -c "open('tests/test_a.py','w').write('')"`).rule, 'test-readonly'));
+t('python -c reading .env is blocked', () => assert.strictEqual(B(`python3 -c "print(open('.env').read())"`).rule, 'secrets'));
+t('node -e mentioning process.env is not a secrets read', () => assert.notStrictEqual(B('node -e "console.log(process.env.HOME)"').rule, 'secrets'));
+t('git branch -D is not pre-approved', () => assert.strictEqual(B('git branch -D feature').decision, 'none'));
+t('git branch listing is pre-approved', () => assert.strictEqual(B('git branch -a').decision, 'allow'));
+t('sort -o is not pre-approved', () => assert.strictEqual(B('sort -o a.txt b.txt').decision, 'none'));
+t('git diff --output is not pre-approved', () => assert.strictEqual(B('git diff --output=x.patch').decision, 'none'));
 t('loop: 3rd identical repeat is blocked', () => assert.strictEqual(B('npm test', { repeats: 3 }).rule, 'loop'));
 t('loop: 2nd repeat is still allowed', () => assert.notStrictEqual(B('npm test', { repeats: 2 }).decision, 'deny'));
 
