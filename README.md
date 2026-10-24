@@ -1,22 +1,49 @@
-# tandem
+# Tandem for Claude Code
 
-**New: Tandem Autopilot for Claude Code.** An autonomous supervision layer that runs inside Claude Code as a plugin: it scopes each request, protects tests and secrets, blocks destructive commands, breaks loops, pre-approves safe actions so sessions run unattended, and refuses to finish until the project's own tests pass. No extra model calls.
+A Claude Code plugin that removes the things you have to watch for when an AI agent edits your code. It runs as hooks, decides deterministically, and never calls a model, so it works with any model or gateway Claude Code points at (Anthropic, OmniRoute, any `ANTHROPIC_BASE_URL`).
 
 ```text
 /plugin marketplace add alhamzahabdulazeez/tandem
 /plugin install tandem@tandem
 ```
 
-Measured on Claude Code with `claude-sonnet-5-5`, 2 external repositories, 63 paired runs ([docs/AUTOPILOT.md](docs/AUTOPILOT.md)):
+Requires Node 18+ and git. Turn it off any time with `TANDEM_HOOKS=off`.
 
-| | Plain Claude Code | With Tandem |
+## What it fixes
+
+| Claude Code problem | What Tandem does | Evidence |
 |---|---|---|
-| Regular tasks solved | 18/18 | 18/18 |
-| Request conflicts with an existing test: rewrote that test to pass | 3/3 | 0/3 (stopped and explained, 3/3) |
-| Non-interactive session without bypassing permissions: tasks completed | 0/2 | 2/2 |
-| Cost per run | baseline | +8% to +18% |
+| Says "done" while tests fail | Runs your tests before Claude may finish; sends it back to fix the code (max 3 rounds, then hands back to you) | [paired runs](docs/AUTOPILOT.md) |
+| Rewrites a test so it passes | Existing tests are append-only unless you ask for test changes; removing assertions, `.skip`, `.only` is refused | 3/3 plain runs rewrote the test, 0/3 with Tandem ([docs](docs/AUTOPILOT.md)) |
+| Test and build output floods the context | Test/build/lint/type-check output is compacted before Claude sees it: every failure line kept, full log saved | 71% fewer tokens on 9 real runs, 111/111 failure lines kept ([bench](bench/compact/results.md)) |
+| `npm test \| tail -8` hides failures and reports exit 0 | Those pipes are run through the compactor instead, with the real exit code | live-tested |
+| Imports a package or file that does not exist | New imports are checked as they are written; Claude cannot finish while one does not resolve | unit + live tested |
+| Installs a hallucinated package name (slopsquatting) | `npm/pnpm/yarn/bun/pip/uv/poetry` installs of names that do not exist, or were first published under 14 days ago, are refused | checked live against npm and PyPI |
+| Pastes an API key into source or commits one | Credentials are refused in writes, shell writes and `git commit` (15 formats + high-entropy assignments), never echoed back | 2 hits on 2,831 real files ([bench](bench/secrets/false-positives.cjs)) |
+| Destructive shell commands | `git reset --hard`, `git clean -f`, `git push`, `rm -rf` of roots, `sudo`, `curl \| sh`, publishing, reading `.env` are refused | unit tested |
+| Rewind does not cover shell changes | A checkpoint of the whole working tree at every request; `/tandem:undo` restores it, including files changed from the shell; `/tandem:redo` reverses it | live-tested |
+| Forgets the task after compaction | The request, scope, files changed, refusals, last test result and open problems are re-injected after compaction | unit tested |
+| Leaves `console.log`, `debugger`, `breakpoint()` | Pointed out once before finishing (only in files that did not already log) | unit tested |
+| Permission prompts stop unattended runs | Checked in-project edits and safe read/test commands are pre-approved | 0/2 vs 2/2 tasks finished without bypassing permissions ([docs](docs/AUTOPILOT.md)) |
+| Retries the same failing command forever | The same command a 4th time with no code change is refused | unit tested |
 
-Details, limits and how to reproduce: [docs/AUTOPILOT.md](docs/AUTOPILOT.md) · plugin docs: [plugin/README.md](plugin/README.md)
+## Commands
+
+| Command | Does |
+|---|---|
+| `/tandem:undo [n]` | Restore the working tree to before the last request (or n back) |
+| `/tandem:redo` | Reverse the last undo |
+| `/tandem:checkpoints` | List checkpoints |
+| `/tandem:receipt` | The last verification receipt: files, tests, blocked actions |
+| `/tandem:stats` | What Tandem blocked, verified and saved in this repository |
+
+Configuration, every rule, and its limits: [plugin/README.md](plugin/README.md).
+
+## Honest limits
+
+- On a strong model and ordinary tasks, Tandem does not make Claude solve more problems; it changes what happens when things go wrong. Measured cost: +8% to +18% per run ([docs/AUTOPILOT.md](docs/AUTOPILOT.md)), measured before output compaction was added.
+- Not a sandbox. It decides on the actions Claude Code shows it; shell parsing is pattern-based. For isolation, run Claude Code in a container.
+- The test gate is only as good as your tests.
 
 ---
 
