@@ -1,0 +1,26 @@
+name: plugin
+on:
+  push:
+    paths: ['plugin/**', '.claude-plugin/**', '.github/workflows/plugin.yml']
+  pull_request:
+    paths: ['plugin/**', '.claude-plugin/**', '.github/workflows/plugin.yml']
+  workflow_dispatch:
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: ['18', '22']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: git identity
+        run: |
+          git config --global user.email ci@example.com
+          git config --global user.name ci
+      - name: plugin tests
+        run: node plugin/test/run.cjs
