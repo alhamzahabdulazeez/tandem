@@ -20,6 +20,7 @@ const U = require('../lib/util.cjs');
 const cmd = Buffer.from(process.argv[2] || '', 'base64').toString('utf8');
 if (!cmd) { process.stderr.write('tandem run: no command\n'); process.exit(2); }
 
+const started = Date.now();
 const r = spawnSync(cmd, {
   shell: true,
   encoding: 'utf8',
@@ -30,6 +31,20 @@ const r = spawnSync(cmd, {
 });
 const output = `${r.stdout || ''}${r.stderr ? (r.stdout ? '\n' : '') + r.stderr : ''}`;
 const code = r.status == null ? 1 : r.status;
+
+// Remember a passing run of the project's own test command on this exact tree,
+// so the finish gate does not run the same suite again.
+try {
+  const root0 = path.resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
+  if (path.resolve(process.cwd()) === root0) {
+    const V = require('../lib/verify.cjs');
+    const test = V.detectTestCommand(root0, U.loadConfig(root0));
+    const zero = /\b(?:0 (?:tests|passing)|no tests? (?:found|ran)|ran 0 tests|collected 0 items)\b/i.test(output);
+    if (test && test.command === cmd.trim()) {
+      U.writeJson(path.join(U.stateDir(root0), 'last-test-run.json'), { command: cmd.trim(), key: U.treeKey(root0), passed: code === 0 && !zero, ms: Date.now() - started, at: Date.now() });
+    }
+  }
+} catch { /* optional */ }
 
 let printed = false;
 try {

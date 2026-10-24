@@ -69,22 +69,7 @@ function trackedFiles(root) {
   return out ? out.split('\n').filter(Boolean) : [];
 }
 
-/** Dirty files with a content hash, so "changed this turn" is exact. */
-function dirtySnapshot(root) {
-  const out = U.git(root, ['status', '--porcelain', '-uall']);
-  const snap = {};
-  if (!out) return snap;
-  for (const line of out.split('\n')) {
-    if (!line.trim()) continue;
-    let file = line.slice(3);
-    if (file.includes(' -> ')) file = file.split(' -> ')[1];
-    file = file.replace(/^"|"$/g, '');
-    let h = 'deleted';
-    try { h = U.sha(fs.readFileSync(path.join(root, file))); } catch { /* deleted */ }
-    snap[file] = h;
-  }
-  return snap;
-}
+const dirtySnapshot = (root) => U.dirtySnapshot(root);
 
 function changedSince(root, snapshot, session) {
   const now = dirtySnapshot(root);
@@ -202,14 +187,9 @@ function ledger(root, session) {
   return L.join('\n');
 }
 
-function baselineKey(root) {
-  const head = (U.git(root, ['rev-parse', 'HEAD']) || 'nohead').trim();
-  return `${head}:${U.sha(JSON.stringify(dirtySnapshot(root))).slice(0, 16)}`;
-}
-
 function startBaseline(root, dir, cfg, command) {
   const file = path.join(dir, 'baseline.json');
-  const key = baselineKey(root);
+  const key = U.treeKey(root);
   const cur = U.readJson(file, null);
   if (cur && cur.key === key && (cur.status === 'done' || (cur.status === 'running' && Date.now() - cur.started < 15 * 60000))) return;
   U.writeJson(file, { key, status: 'running', started: Date.now(), command });
@@ -486,8 +466,15 @@ function onStop(input, root, dir, cfg) {
 
   const digest = U.sha(changed.map((f) => { try { return f + U.sha(fs.readFileSync(path.join(root, f))); } catch { return `${f}:gone`; } }).join('|'));
   let r;
+  // The agent may have just run exactly this test command on exactly this tree
+  // (through the compactor): a pass there is reused instead of running the suite again.
+  const prior = U.readJson(path.join(dir, 'last-test-run.json'), null);
+  const reusable = prior && prior.passed && prior.command === test.command && prior.key === U.treeKey(root) && Date.now() - prior.at < 30 * 60000;
   if (session.lastVerify && session.lastVerify.digest === digest) r = session.lastVerify.result;
-  else {
+  else if (reusable) {
+    r = { passed: true, exitCode: 0, timedOut: false, zeroTests: false, ms: prior.ms, summary: '', sig: '', reused: true };
+    session.lastVerify = { digest, result: r };
+  } else {
     const full = V.runTests(root, test.command, cfg.testTimeoutSec);
     r = { passed: full.passed, exitCode: full.exitCode, timedOut: full.timedOut, zeroTests: full.zeroTests, ms: full.ms, summary: V.summarize(full.output), sig: V.failSignature(full.output) };
     session.lastVerify = { digest, result: r };
@@ -495,7 +482,7 @@ function onStop(input, root, dir, cfg) {
 
   if (r.passed) {
     const g = leftoverGate(); if (g) return g;
-    return finish('verified', `\`${test.command}\` passed (${Math.round(r.ms / 1000)}s)`, null,
+    return finish('verified', `\`${test.command}\` passed (${Math.round(r.ms / 1000)}s${r.reused ? ', your own run on this exact tree, not repeated' : ''})`, null,
       `Tandem verified: ${changed.length} file(s) changed (+${add} -${del}), \`${test.command}\` passed, ${blocks.length} action(s) blocked.`);
   }
   if (r.timedOut) {

@@ -141,6 +141,29 @@ function loadConfig(root) {
   return cfg;
 }
 
+/** Dirty files with a content hash, so "changed" is exact. */
+function dirtySnapshot(root) {
+  const out = git(root, ['status', '--porcelain', '-uall']);
+  const snap = {};
+  if (!out) return snap;
+  for (const line of out.split('\n')) {
+    if (!line.trim()) continue;
+    let file = line.slice(3);
+    if (file.includes(' -> ')) file = file.split(' -> ')[1];
+    file = file.replace(/^"|"$/g, '');
+    let h = 'deleted';
+    try { h = sha(fs.readFileSync(path.join(root, file))); } catch { /* deleted */ }
+    snap[file] = h;
+  }
+  return snap;
+}
+
+/** Identifies the exact state of the working tree: HEAD plus every dirty file's content. */
+function treeKey(root) {
+  const head = (git(root, ['rev-parse', 'HEAD']) || 'nohead').trim();
+  return `${head}:${sha(JSON.stringify(dirtySnapshot(root))).slice(0, 16)}`;
+}
+
 function logLine(dir, line) {
   try { fs.appendFileSync(path.join(dir, 'events.log'), `${new Date().toISOString()} ${line}\n`); } catch { /* ignore */ }
 }
@@ -165,5 +188,7 @@ module.exports = {
   emptySession,
   loadConfig,
   logLine,
+  dirtySnapshot,
+  treeKey,
   sha,
 };

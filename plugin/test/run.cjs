@@ -465,6 +465,23 @@ t('Stop points out a debug leftover once, then lets Claude finish', () => {
 t('a checkpoint is taken at every request, so /tandem:undo has something to restore', () => {
   assert.ok(CP.list(tmp).length >= 1);
 });
+t('Stop reuses the agent\'s own passing run on the same tree instead of running the suite again', () => {
+  hook('UserPromptSubmit', { prompt: 'make add.js support five numbers' });
+  fs.writeFileSync(path.join(tmp, 'add.js'), 'module.exports = (a, b, c = 0, d = 0, e = 0) => a + b + c + d + e;\n');
+  const pre = hook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'npm test' } });
+  spawnSync(pre.json.hookSpecificOutput.updatedInput.command, { cwd: tmp, shell: true, encoding: 'utf8', env: Object.assign({}, process.env, { CLAUDE_PROJECT_DIR: tmp }) });
+  const r = hook('Stop', {});
+  assert.ok(!r.json.decision);
+  assert.match(fs.readFileSync(path.join(tmp, '.git', 'tandem', 'last-receipt.md'), 'utf8'), /not repeated/);
+});
+t('...but runs the suite again once the tree changed after that run', () => {
+  hook('UserPromptSubmit', { prompt: 'make add.js support five numbers' });
+  fs.writeFileSync(path.join(tmp, 'add.js'), 'module.exports = (a, b) => a - b;\n');
+  const r = hook('Stop', {});
+  assert.strictEqual(r.json.decision, 'block');
+  fs.writeFileSync(path.join(tmp, 'add.js'), 'module.exports = (a, b, c = 0) => a + b + c;\n');
+  hook('UserPromptSubmit', { prompt: 'reset' }); hook('Stop', {});
+});
 t('Stop catches a test weakened through the shell', () => {
   hook('UserPromptSubmit', { prompt: 'change add.js' });
   fs.writeFileSync(path.join(tmp, 'test', 'add.test.js'), "console.log('ok');\n");
