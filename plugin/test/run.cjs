@@ -14,8 +14,9 @@ const U = require('../lib/util.cjs');
 
 const HOOK = path.join(__dirname, '..', 'scripts', 'hook.cjs');
 let passed = 0; let failed = 0;
+const annotate = (name, e) => { if (process.env.GITHUB_ACTIONS) console.log(`::error title=${name.replace(/[:,\n]/g, ' ').slice(0, 100)}::${String(e && e.message).replace(/\r?\n/g, '%0A').slice(0, 900)}`); };
 function t(name, fn) {
-  try { fn(); passed++; console.log(`  ok   ${name}`); } catch (e) { failed++; console.log(`  FAIL ${name}\n       ${e.message}`); }
+  try { fn(); passed++; console.log(`  ok   ${name}`); } catch (e) { failed++; console.log(`  FAIL ${name}\n       ${e.message}`); annotate(name, e); }
 }
 function group(name) { console.log(`\n== ${name}`); }
 
@@ -508,7 +509,7 @@ fs.rmSync(proj, { recursive: true, force: true });
 (async () => {
   group('async');
   for (const [name, fn] of asyncTests) {
-    try { await fn(); passed++; console.log(`  ok   ${name}`); } catch (e) { failed++; console.log(`  FAIL ${name}\n       ${e.message}`); }
+    try { await fn(); passed++; console.log(`  ok   ${name}`); } catch (e) { failed++; console.log(`  FAIL ${name}\n       ${e.message}`); annotate(name, e); }
   }
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
