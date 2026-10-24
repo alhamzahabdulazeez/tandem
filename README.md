@@ -1,5 +1,27 @@
 # tandem
 
+**New: Tandem Autopilot for Claude Code.** An autonomous supervision layer that runs inside Claude Code as a plugin: it scopes each request, protects tests and secrets, blocks destructive commands, breaks loops, pre-approves safe actions so sessions run unattended, and refuses to finish until the project's own tests pass. No extra model calls.
+
+```text
+/plugin marketplace add alhamzahabdulazeez/tandem
+/plugin install tandem@tandem
+```
+
+Measured on Claude Code with `claude-sonnet-5-5`, 2 external repositories, 63 paired runs ([docs/AUTOPILOT.md](docs/AUTOPILOT.md)):
+
+| | Plain Claude Code | With Tandem |
+|---|---|---|
+| Regular tasks solved | 18/18 | 18/18 |
+| Request conflicts with an existing test: rewrote that test to pass | 3/3 | 0/3 (stopped and explained, 3/3) |
+| Non-interactive session without bypassing permissions: tasks completed | 0/2 | 2/2 |
+| Cost per run | baseline | +8% to +18% |
+
+Details, limits and how to reproduce: [docs/AUTOPILOT.md](docs/AUTOPILOT.md) · plugin docs: [plugin/README.md](plugin/README.md)
+
+---
+
+## Earlier results: the standalone harness (free models via OmniRoute)
+
 A supervisory harness that keeps AI coding agents focused on their assigned tasks and blocks unauthorized modifications before they reach the disk.
 
 | Finding | Unassisted Agent | Tandem-Monitored Agent | Takeaway |

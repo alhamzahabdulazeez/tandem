@@ -1,0 +1,8 @@
+{
+  "name": "tandem",
+  "owner": { "name": "alhamzahabdulazeez", "url": "https://github.com/alhamzahabdulazeez" },
+  "description": "Tandem: an autonomous supervision layer for Claude Code.",
+  "plugins": [
+    { "name": "tandem", "source": "./plugin", "description": "Scope, guardrails, loop breaking and a test gate before Claude finishes." }
+  ]
+}

@@ -29,6 +29,8 @@ jobs:
 
       - name: Run test suite
         run: node test/all.cjs
+      - name: Tandem Autopilot plugin tests
+        run: node plugin/test/run.cjs
 
   probe:
     name: Environment Probe

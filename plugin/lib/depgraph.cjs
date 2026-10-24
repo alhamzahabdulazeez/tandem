@@ -1,0 +1,196 @@
+'use strict';
+/**
+ * plugin/lib/depgraph.cjs (copied from packages/tandem-check)
+ *
+ * Fast regex-based dependency graph scanner with zero runtime dependencies.
+ * Discovers source files, extracts relative and external import specifiers,
+ * and maps reverse dependencies (who imports what).
+ */
+
+const fs = require('node:fs');
+const path = require('node:path');
+
+const SOURCE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
+const SKIP = new Set(['node_modules', 'dist', 'build', 'coverage', '.git', '.tandem', '.turbo', '.next']);
+
+const IMPORT_PATTERNS = [
+  /import\s+[^'"]*from\s*['"]([^'"]+)['"]/g,
+  /import\s*['"]([^'"]+)['"]/g,
+  /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+  /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+  /export\s+[^'"]*from\s*['"]([^'"]+)['"]/g,
+];
+
+function walk(dir, root, acc) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return acc;
+  }
+  for (const e of entries) {
+    if (e.name.startsWith('.') && e.name !== '.') continue;
+    if (SKIP.has(e.name)) continue;
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) {
+      walk(full, root, acc);
+    } else if (SOURCE.test(e.name)) {
+      acc.push(rel(root, full));
+    }
+  }
+  return acc;
+}
+
+function rel(root, f) {
+  return path.relative(root, f).split(path.sep).join('/');
+}
+
+function extractImports(text) {
+  const found = new Set();
+  for (const re of IMPORT_PATTERNS) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      found.add(m[1]);
+    }
+  }
+  return [...found];
+}
+
+/**
+ * Resolve a relative specifier to a project file against known candidate extensions.
+ */
+function resolveRelative(fromFile, spec, files, root) {
+  if (!spec || !spec.startsWith('.')) return null;
+  const set = new Set(files);
+  const base = path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), spec));
+
+  function tryPkgMain(dir) {
+    try {
+      const pkgPath = root
+        ? path.join(root, dir === '.' ? '' : dir, 'package.json')
+        : path.resolve(dir === '.' ? '' : dir, 'package.json');
+      if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+        if (pkg && typeof pkg.main === 'string') {
+          const mainTarget = path.posix.normalize(path.posix.join(dir === '.' ? '' : dir, pkg.main));
+          const strippedMain = mainTarget.replace(/\.(js|jsx|ts|tsx|mjs|cjs|mts|cts)$/, '');
+          const mainCandidates = [
+            mainTarget,
+            strippedMain + '.ts', strippedMain + '.tsx', strippedMain + '.mts', strippedMain + '.cts',
+            strippedMain + '.js', strippedMain + '.jsx', strippedMain + '.mjs', strippedMain + '.cjs',
+            mainTarget + '/index.js', mainTarget + '/index.ts',
+            strippedMain + '/index.js', strippedMain + '/index.ts',
+          ];
+          for (const mc of mainCandidates) {
+            const norm = path.posix.normalize(mc);
+            if (set.has(norm)) return norm;
+          }
+        }
+      }
+    } catch {}
+    return null;
+  }
+
+  if (base === '.' || base === '') {
+    const pkgResult = tryPkgMain('.');
+    if (pkgResult) return pkgResult;
+    const indexCandidates = [
+      'index.ts', 'index.tsx', 'index.mts', 'index.cts',
+      'index.js', 'index.jsx', 'index.mjs', 'index.cjs',
+    ];
+    for (const c of indexCandidates) {
+      if (set.has(c)) return c;
+    }
+    return null;
+  }
+
+  if (set.has(base)) return base;
+
+  const stripped = base.replace(/\.(js|jsx|ts|tsx|mjs|cjs|mts|cts)$/, '');
+  const extCandidates = [
+    stripped + '.ts', stripped + '.tsx', stripped + '.mts', stripped + '.cts',
+    stripped + '.js', stripped + '.jsx', stripped + '.mjs', stripped + '.cjs',
+  ];
+  for (const c of extCandidates) {
+    if (set.has(c)) return c;
+  }
+
+  const pkgResult = tryPkgMain(base);
+  if (pkgResult) return pkgResult;
+
+  const dirIndexCandidates = [
+    base + '/index.ts', base + '/index.tsx', base + '/index.mts', base + '/index.cts',
+    base + '/index.js', base + '/index.jsx', base + '/index.mjs', base + '/index.cjs',
+    stripped + '/index.ts', stripped + '/index.tsx', stripped + '/index.js', stripped + '/index.cjs',
+  ];
+  for (const c of dirIndexCandidates) {
+    const norm = path.posix.normalize(c);
+    if (set.has(norm)) return norm;
+  }
+
+  return null;
+}
+
+/**
+ * Build the full dependency graph for a repository root.
+ * @param {string} root
+ * @returns {{files: string[], imports: Record<string, string[]>, dependents: Record<string, string[]>, external: Record<string, string[]>}}
+ */
+function build(root) {
+  const files = walk(root, root, []);
+  const imports = {};
+  const dependents = {};
+  const external = {};
+  for (const f of files) {
+    imports[f] = [];
+    dependents[f] = [];
+    external[f] = [];
+  }
+
+  for (const f of files) {
+    let text;
+    try {
+      text = fs.readFileSync(path.join(root, f), 'utf8');
+    } catch {
+      continue;
+    }
+    for (const spec of extractImports(text)) {
+      const target = resolveRelative(f, spec, files, root);
+      if (target) {
+        imports[f].push(target);
+        if (!dependents[target]) dependents[target] = [];
+        dependents[target].push(f);
+      } else if (!spec.startsWith('.')) {
+        external[f].push(spec);
+      }
+    }
+  }
+
+  // Deduplicate entries
+  for (const f of files) {
+    imports[f] = Array.from(new Set(imports[f]));
+    dependents[f] = Array.from(new Set(dependents[f]));
+    external[f] = Array.from(new Set(external[f]));
+  }
+
+  return { files, imports, dependents, external };
+}
+
+function dependentsOf(graph, file) {
+  const norm = file.split(path.sep).join('/');
+  return (graph.dependents[norm] || []).slice();
+}
+
+function dependentCount(graph, file) {
+  const norm = file.split(path.sep).join('/');
+  return (graph.dependents[norm] || []).length;
+}
+
+module.exports = {
+  build,
+  dependentsOf,
+  dependentCount,
+  extractImports,
+  resolveRelative,
+};
