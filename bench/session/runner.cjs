@@ -237,6 +237,36 @@ function summary(results) {
     row('Actions blocked by Tandem (total)', (rs) => String(rs.reduce((a, r) => a + r.denies, 0)));
     row('Sent back by the finish gate (total)', (rs) => String(rs.reduce((a, r) => a + r.stopBlocks, 0)));
   }
+  // Paired differences (B - A) on regular tasks, matched by task and repetition,
+  // with a 95% bootstrap confidence interval (10,000 resamples, fixed seed).
+  if (arms.includes('A') && arms.includes('B')) {
+    const reg = results.filter((r) => !r.conflict);
+    const pairs = [];
+    for (const a of reg.filter((r) => r.arm === 'A')) {
+      const b = reg.find((r) => r.arm === 'B' && r.task === a.task && r.rep === a.rep);
+      if (b) pairs.push([a, b]);
+    }
+    if (pairs.length >= 4) {
+      let seed = 42;
+      const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+      const ci = (f) => {
+        const d = pairs.map(([a, b]) => f(b) / f(a) - 1).filter((x) => Number.isFinite(x));
+        const mean = d.reduce((x, y) => x + y, 0) / d.length;
+        const boots = [];
+        for (let i = 0; i < 10000; i++) { let t = 0; for (let j = 0; j < d.length; j++) t += d[Math.floor(rnd() * d.length)]; boots.push(t / d.length); }
+        boots.sort((x, y) => x - y);
+        return `${(mean * 100).toFixed(1)}% [${(boots[250] * 100).toFixed(1)}%, ${(boots[9749] * 100).toFixed(1)}%]`;
+      };
+      p(`\n### Paired change with Tandem (B vs A), regular tasks, ${pairs.length} pairs, mean [95% bootstrap CI]\n`);
+      p('| Metric | Change |');
+      p('|---|---|');
+      p(`| Cost (USD) | ${ci((r) => r.costUsd)} |`);
+      p(`| Context tokens processed | ${ci(ctx)} |`);
+      p(`| Output tokens | ${ci((r) => (r.usage || {}).output_tokens)} |`);
+      p(`| Turns | ${ci((r) => r.turns)} |`);
+      p(`| Wall time | ${ci((r) => r.wallMs)} |`);
+    }
+  }
   if (args.out) fs.writeFileSync(args.out, `${lines.join('\n')}\n`);
 }
 
