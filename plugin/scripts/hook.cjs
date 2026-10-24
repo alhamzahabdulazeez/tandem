@@ -71,6 +71,17 @@ function trackedFiles(root) {
 
 const dirtySnapshot = (root) => U.dirtySnapshot(root);
 
+/**
+ * Did this file exist before the current request? (in HEAD, or already present
+ * when the request began). A test file Claude created during this request is
+ * its own work in progress, which it must be able to fix; append-only protects
+ * the tests that were there before.
+ */
+function preexisted(root, session, rel) {
+  if (session.snapshot && Object.prototype.hasOwnProperty.call(session.snapshot, rel)) return session.snapshot[rel] !== 'deleted';
+  return U.git(root, ['cat-file', '-e', `HEAD:${rel}`]) !== null;
+}
+
 function changedSince(root, snapshot, session) {
   const now = dirtySnapshot(root);
   const changed = new Set();
@@ -280,8 +291,9 @@ async function onPreToolUse(input, root, dir, cfg) {
     let exists = false;
     if (abs) { try { before = fs.readFileSync(abs, 'utf8'); exists = true; } catch { /* new file */ } }
     const priorBlocks = (session.blocks || []).filter((b) => b.key === key).length;
+    const preexisting = !!rel && preexisted(root, session, rel);
     verdict = P.decideWrite({
-      rel, absPath: abs, exists, toolName: tool, input: ti, before,
+      rel, absPath: abs, exists, preexisting, toolName: tool, input: ti, before,
       scope: session.scope, cfg, scratch: input.scratchpad_dir || null, priorBlocks,
     });
     if (verdict.decision !== 'deny') {
@@ -292,7 +304,7 @@ async function onPreToolUse(input, root, dir, cfg) {
     const cmd = String(ti.command || '').trim();
     key = cmd.slice(0, 200);
     const repeats = cmd === session.lastCommand ? session.commandRepeats : 0;
-    verdict = P.decideBash({ command: cmd, scope: session.scope, cfg, repeats, toRel: (p) => U.relToProject(root, p), exists: (rel) => fs.existsSync(path.join(root, rel)) });
+    verdict = P.decideBash({ command: cmd, scope: session.scope, cfg, repeats, toRel: (p) => U.relToProject(root, p), exists: (rel) => preexisted(root, session, rel) });
     if (verdict.decision !== 'deny' && cfg.checkSecrets !== false && /\bgit\s+(?:-C\s+\S+\s+)?commit\b/.test(cmd)) {
       const found = commitSecrets(root, cmd);
       if (found.length) verdict = { decision: 'deny', rule: 'secret-in-commit', reason: `Tandem blocked this commit: the changes being committed contain a credential (${found.join('; ')}). Remove it from the file, read it from the environment instead, and commit again. Do not try to bypass this.` };
@@ -387,7 +399,7 @@ function onStop(input, root, dir, cfg) {
     }
     session.repairs += 1;
     U.saveSession(dir, input.session_id, session);
-    return blockStop(`${reason}\n\nRepair round ${session.repairs}/${cfg.maxRepairs}. Fix the implementation, not the tests, then finish again.`);
+    return blockStop(`${reason}\n\nRepair round ${session.repairs}/${cfg.maxRepairs}. Fix the implementation (not tests that existed before this request), then finish again.`);
   };
 
   // 1. Every changed file still parses.
@@ -504,7 +516,11 @@ function onStop(input, root, dir, cfg) {
     }
   }
 
-  return repair(`Tandem ran \`${test.command}\` before letting you finish, and it fails (exit ${r.exitCode}).\n${r.summary}`, r.sig);
+  const ownTests = changed.filter((f) => P.isTestFile(f) && !preexisted(root, session, f) && String(r.summary || '').includes(f));
+  const note = ownTests.length
+    ? `\nThe failures include tests you wrote in this request (${ownTests.join(', ')}): those you may fix too if they are wrong; tests that existed before must be satisfied by the implementation.`
+    : '';
+  return repair(`Tandem ran \`${test.command}\` before letting you finish, and it fails (exit ${r.exitCode}).\n${r.summary}${note}`, r.sig);
 }
 
 // -------------------------------------------------------------------- main --

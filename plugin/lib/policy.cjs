@@ -82,7 +82,8 @@ function list(arr) {
 
 /**
  * Decide on a file write.
- * ctx: { rel, exists, toolName, input, before, scope, cfg, scratch, priorBlocks }
+ * ctx: { rel, exists, preexisting, toolName, input, before, scope, cfg, scratch, priorBlocks }
+ *   preexisting: the file existed before the current request (append-only protects only those)
  */
 function decideWrite(ctx) {
   const { rel, scope, cfg } = ctx;
@@ -135,7 +136,8 @@ function decideWrite(ctx) {
         reason: `Tandem blocked ${ctx.exists ? 'editing' : 'creating'} ${rel}: tests are read-only for this task because the request does not ask for test changes.${redirect}${verify}${repeat}`,
       };
     }
-    if (!testsAllowed && ctx.exists && policy === 'append-only') {
+    const protectedTest = ctx.preexisting === undefined ? ctx.exists : ctx.preexisting;
+    if (!testsAllowed && protectedTest && policy === 'append-only') {
       const afterA = applyEdit(ctx.toolName, ctx.input || {}, ctx.before);
       if (!isAppendOnly(ctx.before || '', afterA)) {
         return {

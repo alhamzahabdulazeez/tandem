@@ -57,6 +57,11 @@ t('append-only: flipping an existing assertion is blocked', () => {
   assert.match(v.reason, /tell the user/);
 });
 t('append-only: renaming an existing test is blocked', () => assert.strictEqual(W({ rel: 'test/fresh.js', before: SRC, input: { old_string: "it('a'", new_string: "it('a2'" } }).rule, 'test-modified'));
+t('append-only: Claude may rewrite a test file it created during this request', () => {
+  const v = W({ rel: 'test/new.test.js', exists: true, preexisting: false, before: "it('a', () => { expect(f()).toBe(1) })\n", input: { old_string: 'toBe(1)', new_string: 'toBe(2)' } });
+  assert.strictEqual(v.decision, 'allow');
+});
+t('append-only: .only is still refused in its own new test file', () => assert.strictEqual(W({ rel: 'test/new.test.js', exists: true, preexisting: false, before: "it('a', () => {})", toolName: 'Write', input: { content: "it.only('a', () => {})" } }).rule, 'test-weakening'));
 t('append-only: a new test file is allowed', () => assert.strictEqual(W({ rel: 'test/extra.test.js', exists: false, toolName: 'Write', input: { content: "it('x', () => { expect(1).toBe(1) })" } }).decision, 'allow'));
 t('append-only: a new test file with .only is still blocked', () => assert.strictEqual(W({ rel: 'test/extra.test.js', exists: false, toolName: 'Write', input: { content: "it.only('x', () => {})" } }).rule, 'test-weakening'));
 t('isAppendOnly ignores indentation changes', () => assert.ok(P.isAppendOnly('a\n  b\n', 'a\n    b\nc\n')));
@@ -464,6 +469,16 @@ t('Stop points out a debug leftover once, then lets Claude finish', () => {
 });
 t('a checkpoint is taken at every request, so /tandem:undo has something to restore', () => {
   assert.ok(CP.list(tmp).length >= 1);
+});
+t('end to end: Claude can fix a test file it created earlier in the same request', () => {
+  hook('UserPromptSubmit', { prompt: 'make add.js support three numbers' });
+  const f = path.join(tmp, 'test', 'own.test.js');
+  fs.writeFileSync(f, "const assert = require('assert');\nassert.strictEqual(1, 2);\n");
+  const r = hook('PreToolUse', { tool_name: 'Edit', tool_input: { file_path: f, old_string: 'assert.strictEqual(1, 2);', new_string: 'assert.strictEqual(1, 1);' } });
+  assert.notStrictEqual(r.json && r.json.hookSpecificOutput && r.json.hookSpecificOutput.permissionDecision, 'deny');
+  const r2 = hook('PreToolUse', { tool_name: 'Edit', tool_input: { file_path: path.join(tmp, 'test', 'add.test.js'), old_string: '4);', new_string: '5);' } });
+  assert.strictEqual(r2.json.hookSpecificOutput.permissionDecision, 'deny');
+  fs.unlinkSync(f);
 });
 t('Stop reuses the agent\'s own passing run on the same tree instead of running the suite again', () => {
   hook('UserPromptSubmit', { prompt: 'make add.js support five numbers' });
