@@ -14,8 +14,12 @@ const { spawnSync } = require('node:child_process');
 const REF = 'refs/tandem/checkpoints';
 const KEEP = 30;
 
+// Snapshots must be byte-exact: no CRLF<->LF conversion on the way in or out
+// (Windows git defaults to core.autocrlf=true, which would rewrite line endings on undo).
+const EXACT = ['-c', 'core.autocrlf=false', '-c', 'core.safecrlf=false', '-c', 'core.eol=lf'];
+
 function g(root, args, env, input) {
-  const r = spawnSync('git', args, { cwd: root, encoding: 'utf8', env: Object.assign({}, process.env, env || {}), input, maxBuffer: 64 * 1024 * 1024, timeout: 30000, windowsHide: true });
+  const r = spawnSync('git', EXACT.concat(args), { cwd: root, encoding: 'utf8', env: Object.assign({}, process.env, env || {}), input, maxBuffer: 64 * 1024 * 1024, timeout: 30000, windowsHide: true });
   return { ok: r.status === 0, out: (r.stdout || '').trim(), err: (r.stderr || '').trim() };
 }
 

@@ -259,6 +259,7 @@ const CP = require('../lib/checkpoint.cjs');
 const cpd = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-cp-'));
 const cg = (...a) => spawnSync('git', a, { cwd: cpd, encoding: 'utf8' });
 cg('init', '-q'); cg('config', 'user.email', 't@t'); cg('config', 'user.name', 't');
+cg('config', 'core.autocrlf', 'true'); // what Git for Windows sets by default: undo must still be byte-exact
 fs.writeFileSync(path.join(cpd, '.gitignore'), 'ignored.log\n');
 fs.writeFileSync(path.join(cpd, 'a.js'), 'v1\n'); cg('add', '-A'); cg('commit', '-qm', 'i');
 fs.writeFileSync(path.join(cpd, 'a.js'), 'v2-uncommitted\n');
@@ -306,6 +307,21 @@ t('tandem undo CLI reports what it changed back', () => {
   assert.notStrictEqual(fs.readFileSync(path.join(cpd, 'a.js'), 'utf8'), before);
 });
 fs.rmSync(cpd, { recursive: true, force: true });
+t('undo is byte-exact with core.autocrlf=true: CRLF stays CRLF, LF stays LF', () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-eol-'));
+  const x = (...a) => spawnSync('git', a, { cwd: d, encoding: 'utf8' });
+  x('init', '-q'); x('config', 'core.autocrlf', 'true'); x('config', 'user.email', 't@t'); x('config', 'user.name', 't');
+  fs.writeFileSync(path.join(d, 'base.txt'), 'x\n'); x('add', '-A'); x('commit', '-qm', 'i');
+  fs.writeFileSync(path.join(d, 'win.txt'), 'a\r\nb\r\n');
+  fs.writeFileSync(path.join(d, 'unix.txt'), 'a\nb\n');
+  const c = CP.create(d, 'eol');
+  fs.writeFileSync(path.join(d, 'win.txt'), 'changed\n');
+  fs.writeFileSync(path.join(d, 'unix.txt'), 'changed\r\n');
+  CP.restore(d, c.sha);
+  assert.strictEqual(fs.readFileSync(path.join(d, 'win.txt'), 'utf8'), 'a\r\nb\r\n');
+  assert.strictEqual(fs.readFileSync(path.join(d, 'unix.txt'), 'utf8'), 'a\nb\n');
+  fs.rmSync(d, { recursive: true, force: true });
+});
 
 // ------------------------------------------------------------ packages ----
 group('package install guard');
