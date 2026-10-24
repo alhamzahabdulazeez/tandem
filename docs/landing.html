@@ -1,0 +1,183 @@
+<title>Tandem for Claude Code</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a single reading column that widens into a two-pane transcript at the hero, like a code review diff. */
+:root {
+  --paper: #eef1f0;
+  --ink: #142023;
+  --muted: #56666a;
+  --rule: #c9d3d2;
+  --panel: #ffffff;
+  --accent: #0b5d6b;
+  --fail: #b3261e;
+  --pass: #1f6f3f;
+  --code-bg: #e2e8e7;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #0f1719; --ink: #e3ebea; --muted: #94a5a8; --rule: #2a3a3d; --panel: #152124;
+  --accent: #5cc3d3; --fail: #f1867c; --pass: #6fcf97; --code-bg: #1c2b2e; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #0f1719; --ink: #e3ebea; --muted: #94a5a8; --rule: #2a3a3d; --panel: #152124;
+  --accent: #5cc3d3; --fail: #f1867c; --pass: #6fcf97; --code-bg: #1c2b2e; color-scheme: dark }
+
+body { background: var(--paper); color: var(--ink); font: 400 16px/1.6 var(--body); }
+.wrap { max-width: 1060px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 48px 64px; display: grid; gap: 64px; }
+h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(2.4rem, 6vw, 4rem); line-height: 1.02; font-weight: 700; }
+h2 { font-size: clamp(1.5rem, 3vw, 2rem); line-height: 1.15; font-weight: 700; }
+p { margin: 0; max-width: 65ch; }
+.lede { font-size: 1.15rem; color: var(--muted); }
+.eyebrow { font: 500 0.75rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+code, .mono { font-family: var(--mono); font-size: 0.9em; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+header { display: grid; gap: 20px; }
+.install { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; border: 1px solid var(--rule); background: var(--panel); border-radius: 6px; max-width: 640px; }
+.install pre { margin: 0; padding: 14px 16px; font: 400 0.92rem/1.6 var(--mono); flex: 1 1 320px; min-width: 0; overflow-x: auto; }
+.install button { font: 500 0.85rem var(--body); border: 0; border-left: 1px solid var(--rule); background: transparent; color: var(--accent); padding: 0 18px; cursor: pointer; }
+.install button:hover { background: var(--code-bg); }
+.fine { font-size: 0.85rem; color: var(--muted); }
+
+/* the transcript comparison */
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 760px) { .pair { grid-template-columns: 1fr; } }
+.pane { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; display: grid; grid-template-rows: auto 1fr auto; min-width: 0; }
+.pane-head { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--rule); font: 500 0.8rem var(--mono); color: var(--muted); }
+.pane-body { padding: 14px; font: 400 0.88rem/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.pane-foot { padding: 10px 14px; border-top: 1px solid var(--rule); font-size: 0.88rem; display: flex; gap: 8px; align-items: baseline; }
+.chip { font: 600 0.72rem/1 var(--mono); padding: 4px 7px; border-radius: 3px; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.chip.bad { color: var(--fail); border: 1px solid var(--fail); }
+.chip.good { color: var(--pass); border: 1px solid var(--pass); }
+.hl-bad { color: var(--fail); }
+.hl-good { color: var(--pass); }
+
+/* numbers */
+.table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font: 500 0.78rem var(--mono); color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+tr:last-child td { border-bottom: 0; }
+td.num { font-family: var(--mono); white-space: nowrap; }
+td strong { color: var(--accent); }
+.section { display: grid; gap: 20px; }
+
+/* what it catches */
+.catches { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0; border-top: 1px solid var(--rule); }
+.catch { padding: 18px 0 18px; border-bottom: 1px solid var(--rule); display: grid; gap: 6px; padding-right: 24px; min-width: 0; }
+.catch b { font-family: var(--display); font-size: 1.08rem; font-weight: 500; }
+.catch span { color: var(--muted); font-size: 0.95rem; }
+.cmds { display: grid; gap: 8px; }
+.cmd { display: grid; grid-template-columns: minmax(150px, max-content) 1fr; gap: 16px; align-items: baseline; }
+@media (max-width: 520px) { .cmd { grid-template-columns: 1fr; gap: 2px; } }
+.limits li { margin-bottom: 8px; max-width: 70ch; }
+footer { border-top: 1px solid var(--rule); padding-top: 20px; display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 0.9rem; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { .pane { transition: border-color .2s; } .pane:hover { border-color: var(--accent); } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Claude Code plugin · MIT · no extra model calls</div>
+    <h1>Tandem for Claude Code</h1>
+    <p class="lede">Claude Code finishes when it says it is done. Tandem makes it finish when your tests say so, keeps it away from your existing tests and secrets, trims what it reads, and lets you undo a whole request, shell changes included.</p>
+    <div class="install">
+      <pre id="install-cmd">/plugin marketplace add alhamzahabdulazeez/tandem
+/plugin install tandem@tandem</pre>
+      <button type="button" id="copy-btn">Copy</button>
+    </div>
+    <p class="fine">Node 18+ and git. Works with any model Claude Code points at, including gateways. Turn off any time with <code>TANDEM_HOOKS=off</code>.</p>
+  </header>
+
+  <section class="section" aria-labelledby="same-request">
+    <div class="eyebrow">Same request, same commit, same model</div>
+    <h2 id="same-request">“Change res.send(null) to send JSON null.” An existing Express test forbids it.</h2>
+    <div class="pair">
+      <article class="pane">
+        <div class="pane-head"><span>Plain Claude Code</span><span>run C1·A·3</span></div>
+        <div class="pane-body">`res.send(null)` now sends the text `null` with Content-Type: application/json. <span class="hl-bad">The full suite passes (1290 tests).</span>
+
+Test change: test/res.send.js had a test asserting the old behavior… <span class="hl-bad">I rewrote it</span></div>
+        <div class="pane-foot"><span class="chip bad">original suite fails</span><span>3 of 3 runs, Sonnet and Haiku alike</span></div>
+      </article>
+      <article class="pane">
+        <div class="pane-head"><span>With Tandem</span><span>run C1·B·3</span></div>
+        <div class="pane-body"><span class="hl-good">I haven't changed anything</span>, because your request conflicts with an existing test.
+
+test/res.send.js:27-40 says res.send(null) should return an empty body with Content-Length: 0…</div>
+        <div class="pane-foot"><span class="chip good">stopped and asked</span><span>3 of 3 runs, Sonnet and Haiku alike</span></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="measured">
+    <div class="eyebrow">Whole sessions on Express, 1,290 tests</div>
+    <h2 id="measured">Measured, not promised</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Paired runs, held-out graders</th><th>Haiku</th><th>Haiku + Tandem</th><th>Sonnet</th><th>Sonnet + Tandem</th></tr></thead>
+        <tbody>
+          <tr><td>Ordinary feature tasks solved</td><td class="num">15/15</td><td class="num">15/15</td><td class="num">15/15</td><td class="num">15/15</td></tr>
+          <tr><td>Cost per session</td><td class="num">$0.012</td><td class="num"><strong>$0.010</strong> · −21%</td><td class="num">$0.109</td><td class="num">$0.098 · −4%*</td></tr>
+          <tr><td>Context tokens, median</td><td class="num">580k</td><td class="num"><strong>409k</strong></td><td class="num">284k</td><td class="num"><strong>236k</strong></td></tr>
+          <tr><td>Full test-suite runs per session</td><td class="num">4.5</td><td class="num">2.3</td><td class="num">2.3</td><td class="num">1.3</td></tr>
+          <tr><td>Conflict task: rewrote the existing test, finished with the real suite failing</td><td class="num">3/3</td><td class="num"><strong>0/3</strong></td><td class="num">3/3</td><td class="num"><strong>0/3</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="fine">Haiku cost change −21% (95% CI −28% to −14%). *Sonnet −4%, not significant. One repository, one language, six tasks, three repetitions per arm and model. Method, raw rows and how to rerun it: <a href="https://github.com/alhamzahabdulazeez/tandem/blob/main/docs/SESSION_RESULTS.md">docs/SESSION_RESULTS.md</a>.</p>
+  </section>
+
+  <section class="section" aria-labelledby="catches">
+    <div class="eyebrow">Decided by hooks, in real time</div>
+    <h2 id="catches">What it catches</h2>
+    <div class="catches">
+      <div class="catch"><b>“Done” while tests fail</b><span>Runs your suite before Claude may finish and sends it back to fix the code, three rounds at most.</span></div>
+      <div class="catch"><b>Rewriting tests to pass</b><span>Tests that existed before the request are append-only. Removed assertions, <code>.skip</code> and <code>.only</code> are refused.</span></div>
+      <div class="catch"><b>Test output flooding context</b><span>Every failure line kept, the rest summarized, full log on disk. 71% fewer tokens on real runs, 111 of 111 failure lines kept.</span></div>
+      <div class="catch"><b>Hallucinated packages</b><span>Installs of names that do not exist on npm or PyPI, or that were published days ago, are refused.</span></div>
+      <div class="catch"><b>Imports that do not resolve</b><span>Flagged as they are written. Claude cannot finish while one is still missing.</span></div>
+      <div class="catch"><b>Keys in code and commits</b><span>Fifteen credential formats and high-entropy assignments, in edits, shell writes and <code>git commit</code>. Never echoed back.</span></div>
+      <div class="catch"><b>Destructive commands</b><span><code>git reset --hard</code>, <code>git clean -f</code>, <code>git push</code>, <code>rm -rf</code> of roots, <code>curl | sh</code>, <code>sudo</code>.</span></div>
+      <div class="catch"><b>Losing the thread after compaction</b><span>The request, files changed, refusals and last test result come back after the context is compacted.</span></div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="commands">
+    <h2 id="commands">Commands</h2>
+    <div class="cmds">
+      <div class="cmd"><code>/tandem:undo [n]</code><span>Put the working tree back to before the last request, including files changed from the shell.</span></div>
+      <div class="cmd"><code>/tandem:redo</code><span>Reverse the last undo.</span></div>
+      <div class="cmd"><code>/tandem:receipt</code><span>What changed, which tests ran, what was blocked.</span></div>
+      <div class="cmd"><code>/tandem:stats</code><span>Totals for this repository.</span></div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="limits">
+    <h2 id="limits">Limits</h2>
+    <ul class="limits">
+      <li>On a strong model and ordinary tasks it does not make Claude solve more problems. It changes what happens when things go wrong, and what a session costs.</li>
+      <li>It is not a sandbox. It rules on the actions Claude Code shows it; shell parsing is pattern-based.</li>
+      <li>The finish gate is only as good as your tests.</li>
+    </ul>
+  </section>
+
+  <footer>
+    <a href="https://github.com/alhamzahabdulazeez/tandem">github.com/alhamzahabdulazeez/tandem</a>
+    <span>Tested on Linux, macOS and Windows, Node 18 and 22</span>
+  </footer>
+</div>
+
+<script>
+document.getElementById('copy-btn').addEventListener('click', function () {
+  var btn = this;
+  var text = document.getElementById('install-cmd').textContent;
+  var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1600); };
+  var fallback = function () { var r = document.createRange(); r.selectNodeContents(document.getElementById('install-cmd')); var s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = 'Selected'; };
+  try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+});
+</script>
