@@ -149,6 +149,30 @@ group('verification helpers');
 t('failure signature ignores timings', () => assert.strictEqual(V.failSignature('FAIL a 12ms\nok'), V.failSignature('FAIL a 40ms\nok')));
 t('summary keeps the failing lines', () => assert.match(V.summarize('ok 1\nnot ok 2 - adds\nok 3'), /not ok 2/));
 
+// ------------------------------------------------------------ compact -----
+group('output compaction');
+const C = require('../lib/compact.cjs');
+const passOut = Array.from({ length: 200 }, (_, i) => `  ok   test number ${i}`).concat(['', '200 passed, 0 failed']).join('\n');
+t('short output is returned unchanged', () => assert.strictEqual(C.compact('ok\n1 passed', 0).compacted, false));
+t('a passing run shrinks to its summary', () => { const c = C.compact(passOut, 0); assert.ok(c.compacted); assert.match(c.text, /200 passed/); assert.ok(c.after < c.before / 10); });
+const failOut = Array.from({ length: 150 }, (_, i) => (i === 70 ? '  FAIL adds two numbers\n       AssertionError: expected 5 to equal 4' : `  ok   case ${i}`)).concat(['149 passed, 1 failed']).join('\n');
+t('a failing run keeps the failing test and its message', () => { const c = C.compact(failOut, 1); assert.match(c.text, /FAIL adds two numbers/); assert.match(c.text, /expected 5 to equal 4/); assert.match(c.text, /1 failed/); });
+t('every failure line survives the size cap', () => {
+  const many = Array.from({ length: 400 }, (_, i) => `  FAIL case ${i} with a fairly long descriptive name that eats budget\n    at foo (node_modules/x/y.js:1:1)\n    context line a\n    context line b`).join('\n');
+  const c = C.compact(many, 1);
+  for (const i of [0, 199, 399]) assert.ok(c.text.includes(`FAIL case ${i} with`), `case ${i}`);
+});
+t('dependency stack frames are dropped', () => assert.doesNotMatch(C.compact(failOut + '\n    at x (node_modules/a.js:1:1)'.repeat(50), 1).text, /node_modules/));
+t('jest/vitest JSON report becomes a failure list', () => {
+  const rep = JSON.stringify({ numFailedTests: 1, numPassedTests: 9, numTotalTests: 10, testResults: [{ name: 'a.test.ts', status: 'failed', assertionResults: [{ status: 'failed', fullName: 'sum adds', failureMessages: ['AssertionError: expected 3 to be 4\n    at node_modules/x.js'] }, { status: 'passed', fullName: 'ok one' }] }], pad: 'x'.repeat(5000) });
+  const c = C.compact(rep, 1);
+  assert.match(c.text, /× sum adds/); assert.match(c.text, /expected 3 to be 4/); assert.match(c.text, /1 failed, 9 passed/); assert.doesNotMatch(c.text, /ok one/);
+});
+for (const cmd of ['npm test', 'pnpm run test:unit', 'npx vitest run', 'pytest -q', 'go test ./...', 'cargo test', 'cd pkg && npm test', 'npm test 2>&1', 'npx tsc --noEmit'])
+  t(`compactable: ${cmd}`, () => assert.ok(C.isCompactable(cmd)));
+for (const cmd of ['npm test | tail -5', 'npm test > log.txt', 'node app.js', 'npm install', 'npm test; rm -rf x', 'echo $(npm test)', 'git status'])
+  t(`not compactable: ${cmd}`, () => assert.ok(!C.isCompactable(cmd)));
+
 // ------------------------------------------------------- end to end -------
 group('hook end to end (real git repo, real processes)');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-e2e-'));
@@ -180,6 +204,24 @@ t('PreToolUse denies changing an existing assertion with exit 2 and a JSON deny'
   assert.strictEqual(r.code, 2);
   assert.strictEqual(r.json.hookSpecificOutput.permissionDecision, 'deny');
   assert.match(r.stderr, /add\.js/);
+});
+t('PreToolUse routes npm test through the compactor and keeps it pre-approved', () => {
+  const r = hook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'npm test', description: 'run tests' } });
+  const o = r.json.hookSpecificOutput;
+  assert.strictEqual(o.permissionDecision, 'allow');
+  assert.match(o.updatedInput.command, /run\.cjs" [A-Za-z0-9+/=]+$/);
+  assert.strictEqual(o.updatedInput.description, 'run tests');
+  const back = Buffer.from(o.updatedInput.command.split(' ').pop(), 'base64').toString();
+  assert.strictEqual(back, 'npm test');
+});
+t('the compactor wrapper runs the real command and keeps its exit code', () => {
+  const r = hook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'npm test' } });
+  const x = spawnSync(r.json.hookSpecificOutput.updatedInput.command, { cwd: tmp, shell: true, encoding: 'utf8' });
+  assert.strictEqual(x.status, 0); assert.match(x.stdout, /ok/);
+});
+t('compactOutput:false leaves commands alone', () => {
+  const r = spawnSync(process.execPath, [HOOK, 'PreToolUse'], { cwd: tmp, encoding: 'utf8', input: JSON.stringify({ session_id: 's9', tool_name: 'Bash', tool_input: { command: 'npm test' } }), env: Object.assign({}, process.env, { CLAUDE_PROJECT_DIR: tmp, TANDEM_COMPACT: 'off' }) });
+  assert.ok(!JSON.parse(r.stdout).hookSpecificOutput.updatedInput);
 });
 t('PreToolUse pre-approves the source edit', () => {
   const r = hook('PreToolUse', { tool_name: 'Edit', tool_input: { file_path: path.join(tmp, 'add.js'), old_string: 'a + b', new_string: 'a - b' } });

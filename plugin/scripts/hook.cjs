@@ -17,6 +17,7 @@ const U = require('../lib/util.cjs');
 const P = require('../lib/policy.cjs');
 const S = require('../lib/scope.cjs');
 const V = require('../lib/verify.cjs');
+const C = require('../lib/compact.cjs');
 
 const EVENT = process.argv[2] || '';
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
@@ -35,8 +36,22 @@ function denyTool(reason) {
   emit({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } },
     { exitCode: 2, stderr: reason });
 }
-function allowTool(reason) {
-  emit({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: reason } });
+function allowTool(reason, updatedInput) {
+  const o = { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: reason };
+  if (updatedInput) o.updatedInput = updatedInput;
+  emit({ hookSpecificOutput: o });
+}
+function rewriteTool(updatedInput) {
+  emit({ hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput } });
+}
+
+/** Route a test/build command through scripts/run.cjs so only the useful part of its output reaches the model. */
+function compactedInput(tool, ti, cfg) {
+  if (tool !== 'Bash' || cfg.compactOutput === false) return null;
+  const cmd = String(ti.command || '').trim();
+  if (!C.isCompactable(cmd)) return null;
+  const runner = U.toPosix(path.join(__dirname, 'run.cjs'));
+  return Object.assign({}, ti, { command: `node "${runner}" ${Buffer.from(cmd, 'utf8').toString('base64')}` });
 }
 function feedback(reason) { emit({ decision: 'block', reason }, { exitCode: 2, stderr: reason }); }
 function context(event, text) { emit({ hookSpecificOutput: { hookEventName: event, additionalContext: text } }); }
@@ -245,7 +260,9 @@ function onPreToolUse(input, root, dir, cfg) {
 
   if (cfg.mode === 'observe') return emit(null);
   if (verdict.decision === 'deny') return denyTool(verdict.reason);
-  if (verdict.decision === 'allow') return allowTool(`Tandem: ${verdict.rule}`);
+  const rewritten = compactedInput(tool, ti, cfg);
+  if (verdict.decision === 'allow') return allowTool(`Tandem: ${verdict.rule}`, rewritten);
+  if (rewritten) return rewriteTool(rewritten);
   return emit(null);
 }
 

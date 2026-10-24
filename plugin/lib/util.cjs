@@ -22,6 +22,7 @@ const DEFAULT_CONFIG = Object.freeze({
   allowTestEdits: null,     // null = decide from the prompt; true/false = force
   testPolicy: 'append-only', // append-only | readonly | free (when the request does not ask for tests)
   allowPush: false,         // git push needs the owner unless this is true
+  compactOutput: true,      // route test/build/lint output through the compactor
 });
 
 function readStdin() {
@@ -130,6 +131,7 @@ function loadConfig(root) {
   if (process.env.TANDEM_AUTO_APPROVE) cfg.autoApprove = !/^(0|false|off|no)$/i.test(process.env.TANDEM_AUTO_APPROVE);
   if (process.env.TANDEM_TEST_COMMAND) cfg.testCommand = process.env.TANDEM_TEST_COMMAND;
   if (process.env.TANDEM_TEST_POLICY) cfg.testPolicy = process.env.TANDEM_TEST_POLICY;
+  if (process.env.TANDEM_COMPACT) cfg.compactOutput = !/^(0|false|off|no)$/i.test(process.env.TANDEM_COMPACT);
   return cfg;
 }
 
