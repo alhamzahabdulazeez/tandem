@@ -9,12 +9,21 @@ A Claude Code plugin that removes the things you have to watch for when an AI ag
 
 Requires Node 18+ and git. Turn it off any time with `TANDEM_HOOKS=off`.
 
+Measured on whole Claude Code sessions on Express (1,290 tests, `claude-sonnet-5-5`, 36 paired runs, [details](docs/SESSION_RESULTS.md)):
+
+| | Plain Claude Code | With Tandem |
+|---|---|---|
+| Ordinary tasks solved | 15/15 | 15/15 |
+| Cost per session | $0.109 | **$0.093** (−10.2%, 95% CI −18.7% to −1.2%) |
+| Context tokens per session (median) | 284k | **236k** (−17%) |
+| Request conflicts with an existing test: rewrote the test and finished with the real suite failing | **3/3** | 0/3 (stopped and asked, 3/3) |
+
 ## What it fixes
 
 | Claude Code problem | What Tandem does | Evidence |
 |---|---|---|
-| Says "done" while tests fail | Runs your tests before Claude may finish; sends it back to fix the code (max 3 rounds, then hands back to you) | [paired runs](docs/AUTOPILOT.md) |
-| Rewrites a test so it passes | Existing tests are append-only unless you ask for test changes; removing assertions, `.skip`, `.only` is refused | 3/3 plain runs rewrote the test, 0/3 with Tandem ([docs](docs/AUTOPILOT.md)) |
+| Says "done" while tests fail | Runs your tests before Claude may finish (reusing Claude's own passing run if nothing changed since); sends it back to fix the code (max 3 rounds, then hands back to you) | [session runs](docs/SESSION_RESULTS.md) |
+| Rewrites a test so it passes | Existing tests are append-only unless you ask for test changes; removing assertions, `.skip`, `.only` is refused | 6/6 plain runs rewrote the test across two studies, 0/6 with Tandem ([1](docs/SESSION_RESULTS.md), [2](docs/AUTOPILOT.md)) |
 | Test and build output floods the context | Test/build/lint/type-check output is compacted before Claude sees it: every failure line kept, full log saved | 71% fewer tokens on 9 real runs, 111/111 failure lines kept ([bench](bench/compact/results.md)) |
 | `npm test \| tail -8` hides failures and reports exit 0 | Those pipes are run through the compactor instead, with the real exit code | live-tested |
 | Imports a package or file that does not exist | New imports are checked as they are written; Claude cannot finish while one does not resolve | unit + live tested |
@@ -41,7 +50,8 @@ Configuration, every rule, and its limits: [plugin/README.md](plugin/README.md).
 
 ## Honest limits
 
-- On a strong model and ordinary tasks, Tandem does not make Claude solve more problems; it changes what happens when things go wrong. Measured cost: +8% to +18% per run ([docs/AUTOPILOT.md](docs/AUTOPILOT.md)), measured before output compaction was added.
+- On a strong model and ordinary tasks, Tandem does not make Claude solve more problems; it changes what happens when things go wrong, and what a session costs. The −10% cost figure is one repository, one model, six tasks; on small test suites expect smaller savings. An earlier version without output compaction measured +8% to +18% ([docs/AUTOPILOT.md](docs/AUTOPILOT.md)).
+- The finish gate adds the time of one test run when Claude has not just run the suite itself.
 - Not a sandbox. It decides on the actions Claude Code shows it; shell parsing is pattern-based. For isolation, run Claude Code in a container.
 - The test gate is only as good as your tests.
 
