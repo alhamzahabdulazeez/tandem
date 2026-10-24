@@ -199,6 +199,40 @@ t('python: invented module is flagged, stdlib is not', () => {
   if (bad.length || spawnSync('python3', ['--version']).status === 0) assert.deepStrictEqual(bad, ['totally_made_up_mod']);
 });
 
+// ------------------------------------------------------------ secrets -----
+group('secret scanning');
+const SEC = require('../lib/secrets.cjs');
+// Fake credentials are assembled at runtime so this file never contains one literally.
+const rnd = (n, set = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789') => Array.from({ length: n }, (_, i) => set[(i * 7 + 3) % set.length]).join('');
+const FAKE = {
+  gh: 'gh' + 'p_' + rnd(36),
+  aws: 'AK' + 'IA' + rnd(16, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'),
+  ant: 'sk-' + 'ant-api03-' + rnd(80),
+  oai: 'sk-' + 'proj-' + rnd(48),
+  pem: '-----BEGIN ' + 'RSA PRIVATE KEY-----\\n' + rnd(64, 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef0123456789+/'),
+};
+for (const [k, v] of Object.entries(FAKE)) t(`detects ${k}`, () => assert.ok(SEC.scan(`const key = "${v}";`).length >= 1));
+t('generic high-entropy secret assignment is detected', () => assert.ok(SEC.scan(`const apiKey = "${rnd(32)}9Q+z";`).length));
+t('identifiers and doc examples are not secrets', () => {
+  assert.deepStrictEqual(SEC.scan("const lastSignificantToken = '?NonExpressionBlockEnd'; const authorIdentity = 'evaluator-identity-2024'; key='-----BEGIN PRIVATE KEY-----\\nXXXX\\nXXXX'; // proto://username:password@host.com"), []);
+});
+t('placeholders and env reads are not secrets', () => {
+  assert.deepStrictEqual(SEC.scan('const apiKey = process.env.API_KEY; const token = "your_token_here_please_replace"; password: "changeme-changeme";'), []);
+});
+t('the secret value itself is never echoed', () => assert.doesNotMatch(SEC.describe(SEC.scan(FAKE.gh)), new RegExp(FAKE.gh.slice(6, 30))));
+t('writing a credential into source is refused', () => {
+  const v = W({ rel: 'src/config.js', toolName: 'Write', exists: false, input: { content: `module.exports = { key: "${FAKE.ant}" };` } });
+  assert.strictEqual(v.rule, 'secret-in-code'); assert.match(v.reason, /process\.env/);
+});
+t('a credential that was already in the file does not block an unrelated edit', () => {
+  const before = `const k = "${FAKE.aws}";\nconst a = 1;\n`;
+  assert.strictEqual(W({ rel: 'src/legacy.js', before, input: { old_string: 'const a = 1;', new_string: 'const a = 2;' } }).decision, 'allow');
+});
+t('writing the credential into a named .env is fine', () => assert.strictEqual(W({ rel: '.env', scope: { named: ['.env'], testsAllowed: false }, toolName: 'Write', input: { content: `KEY=${FAKE.oai}` } }).decision, 'allow'));
+t('.env.example with a real key is refused', () => assert.strictEqual(W({ rel: '.env.example', toolName: 'Write', exists: false, input: { content: `KEY=${FAKE.gh}` } }).rule, 'secret-in-code'));
+t('.env.example without real values stays editable', () => assert.strictEqual(W({ rel: '.env.example', toolName: 'Write', exists: false, input: { content: 'API_KEY=your-key-here\n' } }).decision, 'allow'));
+t('echoing a credential into a file is refused', () => assert.strictEqual(B(`echo "TOKEN=${FAKE.gh}" >> src/settings.py`).rule, 'secret-in-code'));
+
 // ------------------------------------------------------------ packages ----
 group('package install guard');
 const K = require('../lib/packages.cjs');
@@ -333,6 +367,25 @@ t('Stop is silent when nothing changed', () => {
   hook('UserPromptSubmit', { prompt: 'explain add.js' });
   const r = hook('Stop', {});
   assert.strictEqual(r.json, null);
+});
+t('git commit with a staged credential is refused', () => {
+  fs.writeFileSync(path.join(tmp, 'cfg.js'), `module.exports = "${FAKE.gh}";\n`);
+  run('git', ['add', 'cfg.js']);
+  const r = hook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'git commit -m "add config"' } });
+  assert.strictEqual(r.json.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(r.stderr, /github-token .* in cfg\.js/);
+  assert.ok(!r.stderr.includes(FAKE.gh));
+  run('git', ['rm', '-q', '--cached', 'cfg.js']); fs.unlinkSync(path.join(tmp, 'cfg.js'));
+});
+t('git add -A && git commit catches an untracked credential file', () => {
+  fs.writeFileSync(path.join(tmp, 'keys.txt'), `aws ${FAKE.aws}\n`);
+  const r = hook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'git add -A && git commit -m wip' } });
+  assert.strictEqual(r.json.hookSpecificOutput.permissionDecision, 'deny');
+  fs.unlinkSync(path.join(tmp, 'keys.txt'));
+});
+t('a clean commit is not blocked', () => {
+  const r = hook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'git commit -m "x"' } });
+  assert.ok(!r.json || !r.json.hookSpecificOutput || r.json.hookSpecificOutput.permissionDecision !== 'deny');
 });
 t('observe mode never blocks', () => {
   hook('UserPromptSubmit', { prompt: 'x' });

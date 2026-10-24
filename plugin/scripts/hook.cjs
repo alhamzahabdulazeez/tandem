@@ -116,6 +116,36 @@ function headContent(root, rel) {
   return U.git(root, ['show', `HEAD:${rel}`]);
 }
 
+const SECRETS = require('../lib/secrets.cjs');
+
+/** Credentials in what a `git commit` command is about to record (added lines only). */
+function commitSecrets(root, cmd) {
+  const texts = [U.git(root, ['diff', '--cached', '-U0', '--no-color']) || ''];
+  const stagesAll = /\bgit\s+add\b|\bcommit\b[^|;&]*\s-[a-zA-Z]*a/.test(cmd);
+  if (stagesAll) {
+    texts.push(U.git(root, ['diff', 'HEAD', '-U0', '--no-color']) || '');
+    const untracked = (U.git(root, ['ls-files', '-o', '--exclude-standard']) || '').split('\n').filter(Boolean).slice(0, 500);
+    for (const f of untracked) {
+      try { const st = fs.statSync(path.join(root, f)); if (st.size < 512 * 1024) texts.push(fs.readFileSync(path.join(root, f), 'utf8').split('\n').map((l) => `+${l}`).join('\n')); } catch { /* skip */ }
+    }
+  }
+  const out = [];
+  for (const t of texts) {
+    let file = '';
+    const added = [];
+    for (const l of t.split('\n')) {
+      const m = l.match(/^\+\+\+ b\/(.+)$/);
+      if (m) { file = m[1]; continue; }
+      if (l.startsWith('+') && !l.startsWith('+++')) added.push(l.slice(1));
+    }
+    for (const f of SECRETS.scan(added.join('\n'))) {
+      const d = `${f.rule} ${f.sample}${file ? ` in ${file}` : ''}`;
+      if (!out.includes(d)) out.push(d);
+    }
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------ events --
 
 function onSessionStart(input, root, dir, cfg) {
@@ -256,6 +286,10 @@ async function onPreToolUse(input, root, dir, cfg) {
     key = cmd.slice(0, 200);
     const repeats = cmd === session.lastCommand ? session.commandRepeats : 0;
     verdict = P.decideBash({ command: cmd, scope: session.scope, cfg, repeats, toRel: (p) => U.relToProject(root, p) });
+    if (verdict.decision !== 'deny' && cfg.checkSecrets !== false && /\bgit\s+(?:-C\s+\S+\s+)?commit\b/.test(cmd)) {
+      const found = commitSecrets(root, cmd);
+      if (found.length) verdict = { decision: 'deny', rule: 'secret-in-commit', reason: `Tandem blocked this commit: the changes being committed contain a credential (${found.join('; ')}). Remove it from the file, read it from the environment instead, and commit again. Do not try to bypass this.` };
+    }
     if (verdict.decision !== 'deny' && cfg.checkPackages !== false) {
       const pk = await K.checkInstall(cmd, { cacheDir: dir, allow: cfg.allowPackages || [] });
       if (pk.decision === 'deny') verdict = pk;

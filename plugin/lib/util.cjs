@@ -26,6 +26,7 @@ const DEFAULT_CONFIG = Object.freeze({
   checkImports: true,       // new imports must resolve before Claude may finish
   checkPackages: true,      // installs of non-existent or brand-new packages are refused
   allowPackages: [],        // package names exempt from the brand-new check
+  checkSecrets: true,       // refuse credentials written into source or commits
 });
 
 function readStdin() {
