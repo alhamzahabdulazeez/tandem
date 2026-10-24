@@ -27,6 +27,8 @@ const DEFAULT_CONFIG = Object.freeze({
   checkPackages: true,      // installs of non-existent or brand-new packages are refused
   allowPackages: [],        // package names exempt from the brand-new check
   checkSecrets: true,       // refuse credentials written into source or commits
+  checkpoints: true,        // snapshot the working tree at every request (tandem undo)
+  checkHygiene: true,       // point out debug leftovers once before finishing
 });
 
 function readStdin() {

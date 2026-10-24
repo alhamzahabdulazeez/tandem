@@ -48,6 +48,9 @@ try {
     const text = c.text.split(cwd).join('');
     process.stdout.write(`${text}\n\n[Tandem: ${code === 0 ? 'passed' : `exit ${code}`}; output compacted ${total} lines -> ${c.text.split('\n').length}. Full log: ${U.toPosix(file)}]\n`);
     printed = true;
+    const sf = path.join(U.stateDir(root), 'compact-stats.json');
+    const st = U.readJson(sf, { runs: 0, before: 0, after: 0 });
+    U.writeJson(sf, { runs: st.runs + 1, before: st.before + c.before, after: st.after + c.after });
   }
 } catch { /* fall through to raw output */ }
 if (!printed) process.stdout.write(output);

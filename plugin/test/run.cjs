@@ -233,6 +233,64 @@ t('.env.example with a real key is refused', () => assert.strictEqual(W({ rel: '
 t('.env.example without real values stays editable', () => assert.strictEqual(W({ rel: '.env.example', toolName: 'Write', exists: false, input: { content: 'API_KEY=your-key-here\n' } }).decision, 'allow'));
 t('echoing a credential into a file is refused', () => assert.strictEqual(B(`echo "TOKEN=${FAKE.gh}" >> src/settings.py`).rule, 'secret-in-code'));
 
+// ------------------------------------------------------------ hygiene -----
+group('debug leftovers');
+const HY = require('../lib/hygiene.cjs');
+const L = (arr) => arr.map((text, i) => ({ n: i + 1, text }));
+t('debugger and breakpoint() are flagged', () => {
+  assert.strictEqual(HY.findings('src/a.ts', '', L(['  debugger;']), false).length, 1);
+  assert.strictEqual(HY.findings('app/m.py', '', L(['    breakpoint()']), false).length, 1);
+});
+t('console.log in a file that never logged is flagged', () => assert.match(HY.findings('src/a.ts', 'export const x = 1;', L(['console.log("here", x)']), false)[0], /console\.log/));
+t('console.log in a file that already logs is left alone', () => assert.deepStrictEqual(HY.findings('src/a.ts', 'console.log("start")', L(['console.log("more")']), false), []));
+t('console.log in bin/ and in tests is left alone', () => { assert.deepStrictEqual(HY.findings('bin/cli.js', '', L(['console.log(1)']), false), []); assert.deepStrictEqual(HY.findings('test/a.test.js', '', L(['console.log(1)']), true), []); });
+t('new TODO markers are counted', () => assert.match(HY.findings('src/a.ts', '', L(['// TODO: handle errors']), false)[0], /1 new TODO/));
+t('diff parser keeps added line numbers', () => assert.deepStrictEqual(HY.addedLinesFromDiff('+++ b/src/a.ts\n@@ -3,0 +4,2 @@\n+x\n+y\n')['src/a.ts'], [{ n: 4, text: 'x' }, { n: 5, text: 'y' }]));
+
+// ------------------------------------------------------------ checkpoints -
+group('checkpoints and undo');
+const CP = require('../lib/checkpoint.cjs');
+const cpd = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-cp-'));
+const cg = (...a) => spawnSync('git', a, { cwd: cpd, encoding: 'utf8' });
+cg('init', '-q'); cg('config', 'user.email', 't@t'); cg('config', 'user.name', 't');
+fs.writeFileSync(path.join(cpd, '.gitignore'), 'ignored.log\n');
+fs.writeFileSync(path.join(cpd, 'a.js'), 'v1\n'); cg('add', '-A'); cg('commit', '-qm', 'i');
+fs.writeFileSync(path.join(cpd, 'a.js'), 'v2-uncommitted\n');
+fs.writeFileSync(path.join(cpd, 'notes.txt'), 'user untracked work\n');
+fs.writeFileSync(path.join(cpd, 'ignored.log'), 'keep me\n');
+let cp1;
+t('a checkpoint does not touch the index, branch or stash', () => {
+  const st = cg('status', '--porcelain').stdout;
+  cp1 = CP.create(cpd, 'make it v3');
+  assert.ok(cp1 && cp1.sha);
+  assert.strictEqual(cg('status', '--porcelain').stdout, st);
+  assert.strictEqual(cg('stash', 'list').stdout, '');
+});
+t('an unchanged tree reuses the last checkpoint', () => assert.ok(CP.create(cpd, 'again').reused));
+t('undo restores edits made by tools AND by the shell, and removes new files', () => {
+  fs.writeFileSync(path.join(cpd, 'a.js'), 'v3-by-agent\n');
+  fs.unlinkSync(path.join(cpd, 'notes.txt'));          // e.g. rm from the shell
+  fs.writeFileSync(path.join(cpd, 'junk.js'), 'x\n');   // new file
+  const r = CP.restore(cpd, cp1.sha);
+  assert.ok(r.ok);
+  assert.strictEqual(fs.readFileSync(path.join(cpd, 'a.js'), 'utf8'), 'v2-uncommitted\n');
+  assert.strictEqual(fs.readFileSync(path.join(cpd, 'notes.txt'), 'utf8'), 'user untracked work\n');
+  assert.ok(!fs.existsSync(path.join(cpd, 'junk.js')));
+  assert.strictEqual(fs.readFileSync(path.join(cpd, 'ignored.log'), 'utf8'), 'keep me\n');
+});
+t('the undo itself can be undone', () => {
+  const back = CP.list(cpd).find((c) => /state before tandem undo/.test(c.label));
+  CP.restore(cpd, back.sha);
+  assert.strictEqual(fs.readFileSync(path.join(cpd, 'a.js'), 'utf8'), 'v3-by-agent\n');
+  assert.ok(fs.existsSync(path.join(cpd, 'junk.js')));
+});
+t('tandem undo CLI reports what it changed back', () => {
+  const r = spawnSync(process.execPath, [path.join(__dirname, '..', 'scripts', 'tandem.cjs'), 'undo', '1'], { cwd: cpd, encoding: 'utf8', env: Object.assign({}, process.env, { CLAUDE_PROJECT_DIR: cpd }) });
+  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /Restored the working tree[\s\S]*a\.js/);
+});
+fs.rmSync(cpd, { recursive: true, force: true });
+
 // ------------------------------------------------------------ packages ----
 group('package install guard');
 const K = require('../lib/packages.cjs');
@@ -346,6 +404,13 @@ t('Stop refuses to finish while that import still does not resolve', () => {
   assert.strictEqual(r.json.decision, 'block');
   assert.match(r.json.reason, /do not resolve[\s\S]*number-formatter-x/);
 });
+t('after compaction the task state is re-injected', () => {
+  const r = hook('SessionStart', { source: 'compact' });
+  const c = r.json.hookSpecificOutput.additionalContext;
+  assert.match(c, /Current request: make add\.js support three numbers/);
+  assert.match(c, /Files changed so far for this request: add\.js/);
+  assert.match(c, /Imports that did not resolve yet: add\.js: number-formatter-x/);
+});
 t('Stop allows and writes a receipt once tests pass', () => {
   hook('UserPromptSubmit', { prompt: 'make add.js support three numbers' });
   fs.writeFileSync(path.join(tmp, 'add.js'), 'module.exports = (a, b, c = 0) => a + b + c;\n');
@@ -353,6 +418,20 @@ t('Stop allows and writes a receipt once tests pass', () => {
   assert.ok(!r.json.decision);
   assert.match(r.json.systemMessage, /verified/);
   assert.ok(fs.existsSync(path.join(tmp, '.git', 'tandem', 'last-receipt.md')));
+});
+t('Stop points out a debug leftover once, then lets Claude finish', () => {
+  hook('UserPromptSubmit', { prompt: 'make add.js support four numbers' });
+  fs.writeFileSync(path.join(tmp, 'add.js'), 'module.exports = (a, b, c = 0, d = 0) => {\n  console.log("dbg", a);\n  return a + b + c + d;\n};\n');
+  const r1 = hook('Stop', {});
+  assert.strictEqual(r1.json.decision, 'block');
+  assert.match(r1.json.reason, /debug leftovers[\s\S]*add\.js:2/);
+  const r2 = hook('Stop', {});
+  assert.ok(!r2.json.decision);
+  assert.match(fs.readFileSync(path.join(tmp, '.git', 'tandem', 'last-receipt.md'), 'utf8'), /Possible debug leftovers/);
+  fs.writeFileSync(path.join(tmp, 'add.js'), 'module.exports = (a, b, c = 0) => a + b + c;\n');
+});
+t('a checkpoint is taken at every request, so /tandem:undo has something to restore', () => {
+  assert.ok(CP.list(tmp).length >= 1);
 });
 t('Stop catches a test weakened through the shell', () => {
   hook('UserPromptSubmit', { prompt: 'change add.js' });

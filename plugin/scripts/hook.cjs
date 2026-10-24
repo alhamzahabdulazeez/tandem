@@ -20,6 +20,8 @@ const V = require('../lib/verify.cjs');
 const C = require('../lib/compact.cjs');
 const I = require('../lib/imports.cjs');
 const K = require('../lib/packages.cjs');
+const CP = require('../lib/checkpoint.cjs');
+const H = require('../lib/hygiene.cjs');
 
 const EVENT = process.argv[2] || '';
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
@@ -173,11 +175,31 @@ function onSessionStart(input, root, dir, cfg) {
       if (top.length) lines.push(`- Most-imported files (a change here has a wide blast radius): ${top.map(([f, n]) => `${f} (${n})`).join(', ')}`);
     } catch { /* graph is optional */ }
   }
-  if (input.source === 'compact' && session.prompt) {
-    lines.push(`- Current task scope: ${session.scope.named.length ? session.scope.named.join(', ') : 'no files named'}; ${session.scope.reason}.`);
-  }
+  if (input.source === 'compact' && session.prompt) lines.push(ledger(root, session));
   if (test && (input.source === 'startup' || input.source === 'clear' || !input.source)) startBaseline(root, dir, cfg, test.command);
   context('SessionStart', lines.join('\n'));
+}
+
+/** What the agent was doing, rebuilt from state after the context was compacted. */
+function ledger(root, session) {
+  const changed = changedSince(root, session.snapshot || {}, session);
+  const blocks = (session.blocks || []).filter((b) => !session.turnStart || b.at >= session.turnStart);
+  const rules = Array.from(new Set(blocks.map((b) => b.rule)));
+  const L = ['', 'Task state carried over by Tandem (the conversation was compacted):'];
+  L.push(`- Current request: ${session.prompt.slice(0, 700)}${session.prompt.length > 700 ? ' [...]' : ''}`);
+  const earlier = (session.prompts || []).slice(0, -1).slice(-4);
+  if (earlier.length) L.push(`- Earlier requests this session: ${earlier.map((p) => `"${p.slice(0, 120)}"`).join('; ')}`);
+  L.push(`- Scope: ${session.scope.named.length ? session.scope.named.join(', ') : 'no files named'}; ${session.scope.reason}.`);
+  L.push(`- Files changed so far for this request: ${changed.length ? changed.slice(0, 25).join(', ') : 'none'}`);
+  if (rules.length) L.push(`- Already refused by Tandem this request (do not retry): ${rules.join(', ')}`);
+  if (session.lastVerify && session.lastVerify.result) {
+    const r = session.lastVerify.result;
+    L.push(r.passed ? '- Last test run: passed' : `- Last test run: FAILED\n${String(r.summary || '').split('\n').slice(0, 8).join('\n')}`);
+  }
+  if (session.repairs) L.push(`- Repair rounds used: ${session.repairs}`);
+  const unresolved = Object.entries(session.unresolved || {}).map(([f, s]) => `${f}: ${s.join(', ')}`);
+  if (unresolved.length) L.push(`- Imports that did not resolve yet: ${unresolved.join('; ')}`);
+  return L.join('\n');
 }
 
 function baselineKey(root) {
@@ -229,6 +251,11 @@ function onUserPrompt(input, root, dir, cfg) {
   const prompt = String(input.prompt || '');
   session.prompt = prompt.slice(0, 4000);
   session.promptCount += 1;
+  session.prompts = (session.prompts || []).concat([prompt.slice(0, 300)]).slice(-6);
+  session.hygieneShown = false;
+  if (cfg.checkpoints !== false) {
+    try { const cp = CP.create(root, prompt); if (cp) session.checkpoint = cp.sha; } catch (e) { U.logLine(dir, `checkpoint failed: ${e.message}`); }
+  }
   session.scope = S.derive(prompt, trackedFiles(root));
   session.snapshot = dirtySnapshot(root);
   session.changed = [];
@@ -350,6 +377,7 @@ function writeReceipt(dir, receipt) {
     `- Blocked actions: ${receipt.blocks.length}${receipt.blocks.length ? ` (${Array.from(new Set(receipt.blocks.map((b) => b.rule))).join(', ')})` : ''}`,
     `- Tests: ${receipt.tests || 'not run'}`,
     `- Repair rounds: ${receipt.repairs}`,
+    receipt.leftovers && receipt.leftovers.length ? `- Possible debug leftovers: ${receipt.leftovers.slice(0, 10).join('; ')}` : '',
     receipt.note ? `- Note: ${receipt.note}` : '',
   ].filter(Boolean);
   try { fs.writeFileSync(path.join(dir, 'last-receipt.md'), `${lines.join('\n')}\n`); } catch { /* ignore */ }
@@ -422,8 +450,34 @@ function onStop(input, root, dir, cfg) {
   }
 
   // 3. The project's own tests pass, or fail only where they already failed.
+  // 2b. Debug leftovers: pointed out once per request, never a repair round.
+  const leftovers = [];
+  if (cfg.checkHygiene !== false) {
+    const diff = U.git(root, ['diff', 'HEAD', '-U0', '--no-color', '--', ...changed]) || '';
+    const added = H.addedLinesFromDiff(diff);
+    for (const f of changed) {
+      if (!H.lang(f)) continue;
+      let lines = added[f];
+      const before = headContent(root, f);
+      if (!lines && before == null) {
+        try { lines = fs.readFileSync(path.join(root, f), 'utf8').split('\n').map((text, i) => ({ n: i + 1, text })); } catch { lines = []; }
+      }
+      leftovers.push(...H.findings(f, before || '', lines || [], P.isTestFile(f)));
+    }
+  }
+  base.leftovers = leftovers;
+  const leftoverGate = () => {
+    if (!leftovers.length || session.hygieneShown || !enforce) return null;
+    session.hygieneShown = true;
+    U.saveSession(dir, input.session_id, session);
+    return blockStop(`Tandem: the change works, but it adds what look like debug leftovers:\n${leftovers.slice(0, 15).join('\n')}\nRemove the ones that were only for debugging (keep any that are intended), then finish. Tandem will not ask about these again for this request.`);
+  };
+
   const test = V.detectTestCommand(root, cfg);
-  if (!test) return finish('syntax-only', null, 'no test command detected', `Tandem: ${changed.length} file(s) changed (+${add} -${del}); syntax OK; no test command found.`);
+  if (!test) {
+    const g = leftoverGate(); if (g) return g;
+    return finish('syntax-only', null, 'no test command detected', `Tandem: ${changed.length} file(s) changed (+${add} -${del}); syntax OK; no test command found.`);
+  }
 
   const digest = U.sha(changed.map((f) => { try { return f + U.sha(fs.readFileSync(path.join(root, f))); } catch { return `${f}:gone`; } }).join('|'));
   let r;
@@ -435,6 +489,7 @@ function onStop(input, root, dir, cfg) {
   }
 
   if (r.passed) {
+    const g = leftoverGate(); if (g) return g;
     return finish('verified', `\`${test.command}\` passed (${Math.round(r.ms / 1000)}s)`, null,
       `Tandem verified: ${changed.length} file(s) changed (+${add} -${del}), \`${test.command}\` passed, ${blocks.length} action(s) blocked.`);
   }
