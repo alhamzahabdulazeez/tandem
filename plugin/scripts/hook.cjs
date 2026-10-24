@@ -312,7 +312,7 @@ async function onPreToolUse(input, root, dir, cfg) {
     const cmd = String(ti.command || '').trim();
     key = cmd.slice(0, 200);
     const repeats = cmd === session.lastCommand ? session.commandRepeats : 0;
-    verdict = P.decideBash({ command: cmd, scope: session.scope, cfg, repeats, toRel: (p) => U.relToProject(root, p) });
+    verdict = P.decideBash({ command: cmd, scope: session.scope, cfg, repeats, toRel: (p) => U.relToProject(root, p), exists: (rel) => fs.existsSync(path.join(root, rel)) });
     if (verdict.decision !== 'deny' && cfg.checkSecrets !== false && /\bgit\s+(?:-C\s+\S+\s+)?commit\b/.test(cmd)) {
       const found = commitSecrets(root, cmd);
       if (found.length) verdict = { decision: 'deny', rule: 'secret-in-commit', reason: `Tandem blocked this commit: the changes being committed contain a credential (${found.join('; ')}). Remove it from the file, read it from the environment instead, and commit again. Do not try to bypass this.` };
@@ -438,7 +438,12 @@ function onStop(input, root, dir, cfg) {
     let after = null;
     try { after = fs.readFileSync(path.join(root, f), 'utf8'); } catch { after = ''; }
     const before = headContent(root, f);
-    if (before == null) continue;
+    if (before == null) {
+      // a new test file (possibly written from the shell): only .only/.skip matter
+      const w0 = P.weakening('', after).filter((x) => !/removes/.test(x));
+      if (w0.length) weak.push(`${f}: ${w0.join('; ')}`);
+      continue;
+    }
     const w = P.weakening(before, after);
     if (after === '') w.push('deletes the test file');
     const testsAllowed = cfg.allowTestEdits === true || (cfg.allowTestEdits !== false && (session.scope.testsAllowed || (session.scope.named || []).includes(f)));

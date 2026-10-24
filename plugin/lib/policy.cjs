@@ -238,7 +238,7 @@ function shellWriteTargets(cmd) {
 
 /**
  * Decide on a shell command.
- * ctx: { command, scope, cfg, toRel(path) -> rel|null, repeats }
+ * ctx: { command, scope, cfg, toRel(path) -> rel|null, exists(rel) -> bool, repeats }
  */
 function decideBash(ctx) {
   const cmd = String(ctx.command || '').trim();
@@ -263,7 +263,11 @@ function decideBash(ctx) {
   for (const t of shellWriteTargets(cmd).concat(inlineWriteTargets(cmd))) {
     const rel = ctx.toRel ? ctx.toRel(t) : t;
     if (!rel) continue;
-    if (isTestFile(rel) && !testsAllowed && !named.has(rel) && ctx.cfg.testPolicy !== 'free') {
+    // Creating a NEW test file is adding tests, which append-only allows; the
+    // finish gate still checks it for .only/.skip. Existing ones stay shell-proof.
+    const isNew = ctx.exists ? !ctx.exists(rel) : false;
+    const newOk = isNew && (ctx.cfg.testPolicy || 'append-only') === 'append-only';
+    if (isTestFile(rel) && !testsAllowed && !named.has(rel) && ctx.cfg.testPolicy !== 'free' && !newOk) {
       return { decision: 'deny', rule: 'test-readonly', reason: `Tandem blocked this command: it would modify the test file ${rel} from the shell, where the change cannot be checked. Fix the implementation; to add a test case, use the Edit tool so Tandem can confirm the change only adds.` };
     }
     for (const p of PROTECTED) {

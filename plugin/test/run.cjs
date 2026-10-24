@@ -120,6 +120,9 @@ t('sed -i on a test file is blocked', () => assert.strictEqual(B("sed -i 's/toBe
 t('redirect into a test file is blocked', () => assert.strictEqual(B('echo x > test/fresh.js').rule, 'test-readonly'));
 t('reading a test file is fine', () => assert.notStrictEqual(B('cat test/fresh.js').decision, 'deny'));
 t('npm test > out.log is fine', () => assert.notStrictEqual(B('npm test > out.log').decision, 'deny'));
+t('creating a NEW test file from the shell is allowed (append-only)', () => assert.notStrictEqual(B("cat > test/new.test.js <<'EOF'\nit('x', () => {})\nEOF", { exists: () => false }).decision, 'deny'));
+t('overwriting an EXISTING test file from the shell is still blocked', () => assert.strictEqual(B('cat > test/fresh.js <<EOF\nEOF', { exists: () => true }).rule, 'test-readonly'));
+t('creating a new test file from the shell is blocked under readonly policy', () => assert.strictEqual(B('echo x > test/new.test.js', { exists: () => false, cfg: Object.assign({}, cfg, { testPolicy: 'readonly' }) }).rule, 'test-readonly'));
 t('rm of a test file is blocked', () => assert.strictEqual(B('rm test/fresh.js').rule, 'test-readonly'));
 t('npm test is pre-approved', () => assert.strictEqual(B('npm test').decision, 'allow'));
 t('git status is pre-approved', () => assert.strictEqual(B('git status').decision, 'allow'));
@@ -452,6 +455,14 @@ t('Stop catches a test weakened through the shell', () => {
   assert.strictEqual(r.json.decision, 'block');
   assert.match(r.json.reason, /changed or weakened/);
   run('git', ['checkout', '--', 'test/add.test.js']);
+});
+t('Stop catches .only in a new test file written from the shell', () => {
+  hook('UserPromptSubmit', { prompt: 'change add.js' });
+  fs.writeFileSync(path.join(tmp, 'test', 'extra.test.js'), "it.only('x', () => {})\n");
+  const r = hook('Stop', {});
+  assert.strictEqual(r.json.decision, 'block');
+  assert.match(r.json.reason, /extra\.test\.js: adds \.only/);
+  fs.unlinkSync(path.join(tmp, 'test', 'extra.test.js'));
 });
 t('Stop is silent when nothing changed', () => {
   run('git', ['add', '-A']); run('git', ['commit', '-qm', 'two']);
