@@ -23,6 +23,9 @@ const DEFAULT_CONFIG = Object.freeze({
   testPolicy: 'append-only', // append-only | readonly | free (when the request does not ask for tests)
   allowPush: false,         // git push needs the owner unless this is true
   compactOutput: true,      // route test/build/lint output through the compactor
+  checkImports: true,       // new imports must resolve before Claude may finish
+  checkPackages: true,      // installs of non-existent or brand-new packages are refused
+  allowPackages: [],        // package names exempt from the brand-new check
 });
 
 function readStdin() {

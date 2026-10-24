@@ -18,6 +18,8 @@ const P = require('../lib/policy.cjs');
 const S = require('../lib/scope.cjs');
 const V = require('../lib/verify.cjs');
 const C = require('../lib/compact.cjs');
+const I = require('../lib/imports.cjs');
+const K = require('../lib/packages.cjs');
 
 const EVENT = process.argv[2] || '';
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
@@ -206,6 +208,8 @@ function onUserPrompt(input, root, dir, cfg) {
   session.lastCommand = null;
   session.commandRepeats = 0;
   session.turnBlocks = [];
+  session.unresolved = {};
+  session.preImports = {};
   U.saveSession(dir, input.session_id, session);
 
   const test = V.detectTestCommand(root, cfg);
@@ -222,7 +226,7 @@ function onUserPrompt(input, root, dir, cfg) {
   context('UserPromptSubmit', lines.join('\n'));
 }
 
-function onPreToolUse(input, root, dir, cfg) {
+async function onPreToolUse(input, root, dir, cfg) {
   const session = U.loadSession(dir, input.session_id);
   session.toolCalls += 1;
   const tool = input.tool_name;
@@ -243,12 +247,19 @@ function onPreToolUse(input, root, dir, cfg) {
       rel, absPath: abs, exists, toolName: tool, input: ti, before,
       scope: session.scope, cfg, scratch: input.scratchpad_dir || null, priorBlocks,
     });
-    if (verdict.decision !== 'deny') { session.lastCommand = null; session.commandRepeats = 0; }
+    if (verdict.decision !== 'deny') {
+      session.lastCommand = null; session.commandRepeats = 0;
+      if (rel && I.langOf(rel)) { session.preImports = session.preImports || {}; session.preImports[rel] = Array.from(I.importsOf(rel, before || '')); }
+    }
   } else if (tool === 'Bash' || tool === 'PowerShell') {
     const cmd = String(ti.command || '').trim();
     key = cmd.slice(0, 200);
     const repeats = cmd === session.lastCommand ? session.commandRepeats : 0;
     verdict = P.decideBash({ command: cmd, scope: session.scope, cfg, repeats, toRel: (p) => U.relToProject(root, p) });
+    if (verdict.decision !== 'deny' && cfg.checkPackages !== false) {
+      const pk = await K.checkInstall(cmd, { cacheDir: dir, allow: cfg.allowPackages || [] });
+      if (pk.decision === 'deny') verdict = pk;
+    }
     if (verdict.decision !== 'deny') { session.lastCommand = cmd; session.commandRepeats = repeats + 1; }
   }
 
@@ -277,6 +288,20 @@ function onPostToolUse(input, root, dir, cfg) {
   U.saveSession(dir, input.session_id, session);
   const err = V.syntaxCheck(root, rel);
   if (err && cfg.mode !== 'observe') return feedback(`Tandem: ${rel} no longer parses after this edit:\n${err}\nFix it before doing anything else.`);
+  if (cfg.checkImports !== false && I.langOf(rel)) {
+    let after = '';
+    try { after = fs.readFileSync(path.join(root, rel), 'utf8'); } catch { /* deleted */ }
+    const pre = (session.preImports && session.preImports[rel]) || [];
+    const bad = I.newUnresolved(root, rel, pre, after);
+    session.unresolved = session.unresolved || {};
+    const prev = session.unresolved[rel] || [];
+    const merged = Array.from(new Set(prev.concat(bad.map((b) => b.spec))));
+    if (merged.length) session.unresolved[rel] = merged; else delete session.unresolved[rel];
+    U.saveSession(dir, input.session_id, session);
+    if (bad.length && cfg.mode !== 'observe') {
+      return context('PostToolUse', `Tandem: ${rel} now imports something that does not resolve:\n${bad.map((b) => `- ${b.spec}: ${b.why}`).join('\n')}\nIf you are about to create it, carry on; otherwise this is a wrong name or a package that is not installed. Tandem will check again before you finish.`);
+    }
+  }
   return emit(null);
 }
 
@@ -327,6 +352,21 @@ function onStop(input, root, dir, cfg) {
   const syntax = changed.map((f) => [f, V.syntaxCheck(root, f)]).filter(([, e]) => e);
   if (syntax.length) {
     return repair(`Tandem checked your changes before letting you finish: ${syntax.length} file(s) do not parse.\n${syntax.map(([f, e]) => `${f}: ${e}`).join('\n')}`, `syntax:${syntax.map(([f]) => f).join(',')}`);
+  }
+
+  // 1b. Imports added this turn resolve.
+  if (cfg.checkImports !== false && session.unresolved) {
+    const still = [];
+    for (const [f, specs] of Object.entries(session.unresolved)) {
+      let cur = '';
+      try { cur = fs.readFileSync(path.join(root, f), 'utf8'); } catch { continue; }
+      const now = I.importsOf(f, cur);
+      const left = I.stillUnresolved(root, f, specs.filter((x) => now.has(x)));
+      for (const b of left) still.push(`${f}: ${b.spec} (${b.why})`);
+    }
+    if (still.length) {
+      return repair(`Tandem checked your changes before letting you finish: ${still.length} import(s) do not resolve.\n${still.join('\n')}\nCreate the missing module, fix the name, or use something the project already has. If a new dependency is really needed, say so to the user instead of importing it.`, `imports:${still.join('|')}`);
+    }
   }
 
   // 2. No test was weakened, by any route (Edit tool or shell).
@@ -388,7 +428,7 @@ function onStop(input, root, dir, cfg) {
 
 // -------------------------------------------------------------------- main --
 
-function main() {
+async function main() {
   if (EVENT === 'Baseline') return onBaseline();
   const input = U.readStdin();
   const root = U.projectDir(input);
@@ -404,7 +444,7 @@ function main() {
     switch (EVENT) {
       case 'SessionStart': return onSessionStart(input, root, dir, cfg);
       case 'UserPromptSubmit': return onUserPrompt(input, root, dir, cfg);
-      case 'PreToolUse': return onPreToolUse(input, root, dir, cfg);
+      case 'PreToolUse': return await onPreToolUse(input, root, dir, cfg);
       case 'PostToolUse': return onPostToolUse(input, root, dir, cfg);
       case 'Stop': return onStop(input, root, dir, cfg);
       default: return emit(null);
@@ -415,4 +455,4 @@ function main() {
   }
 }
 
-main();
+main().catch(() => emit(null));

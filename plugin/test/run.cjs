@@ -173,6 +173,60 @@ for (const cmd of ['npm test', 'pnpm run test:unit', 'npx vitest run', 'pytest -
 for (const cmd of ['npm test | tail -5', 'npm test > log.txt', 'node app.js', 'npm install', 'npm test; rm -rf x', 'echo $(npm test)', 'git status'])
   t(`not compactable: ${cmd}`, () => assert.ok(!C.isCompactable(cmd)));
 
+// ------------------------------------------------------------ imports -----
+group('hallucinated imports');
+const I = require('../lib/imports.cjs');
+const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-imp-'));
+fs.mkdirSync(path.join(proj, 'src', 'util'), { recursive: true });
+fs.mkdirSync(path.join(proj, 'node_modules', 'lodash'), { recursive: true });
+fs.writeFileSync(path.join(proj, 'node_modules', 'lodash', 'package.json'), '{"name":"lodash"}');
+fs.writeFileSync(path.join(proj, 'package.json'), JSON.stringify({ name: 'p', dependencies: { express: '^4' } }));
+fs.writeFileSync(path.join(proj, 'src', 'util', 'time.ts'), 'export const x = 1;\n');
+fs.writeFileSync(path.join(proj, 'src', 'a.ts'), '');
+const NU = (after, before = '') => I.newUnresolved(proj, 'src/a.ts', before, after).map((b) => b.spec);
+t('extracts import, export-from, require and dynamic import', () => assert.deepStrictEqual(Array.from(I.jsImports("import a from 'x'\nimport type {T} from \"y\"\nexport * from './z'\nconst q = require('w')\nawait import('v')\n// import 'ignored'")).sort(), ['./z', 'v', 'w', 'x', 'y']));
+t('relative import to a missing file is flagged', () => assert.deepStrictEqual(NU("import { f } from './util/clock'"), ['./util/clock']));
+t('relative import written as .js for a .ts source resolves', () => assert.deepStrictEqual(NU("import { x } from './util/time.js'"), []));
+t('builtins resolve', () => assert.deepStrictEqual(NU("import fs from 'node:fs'\nconst p = require('path')"), []));
+t('declared dependency resolves even if not installed', () => assert.deepStrictEqual(NU("import express from 'express'"), []));
+t('installed package resolves', () => assert.deepStrictEqual(NU("import _ from 'lodash/fp'"), []));
+t('invented package is flagged', () => assert.deepStrictEqual(NU("import { magic } from 'super-json-fixer'"), ['super-json-fixer']));
+t('imports that were already there are not re-reported', () => assert.deepStrictEqual(NU("import a from 'ghost-pkg'\nimport b from 'x2'", "import a from 'ghost-pkg'"), ['x2']));
+t('python imports are parsed', () => assert.deepStrictEqual(Array.from(I.pyImports('import os, sys as s\nfrom collections import deque\nfrom .local import x\n# import nope')).sort(), ['.local', 'collections', 'os', 'sys']));
+t('python: invented module is flagged, stdlib is not', () => {
+  fs.writeFileSync(path.join(proj, 'app.py'), '');
+  const bad = I.newUnresolved(proj, 'app.py', '', 'import os\nimport json\nimport totally_made_up_mod\n').map((b) => b.spec);
+  if (bad.length || spawnSync('python3', ['--version']).status === 0) assert.deepStrictEqual(bad, ['totally_made_up_mod']);
+});
+
+// ------------------------------------------------------------ packages ----
+group('package install guard');
+const K = require('../lib/packages.cjs');
+t('parses npm/pnpm/yarn/pip install targets', () => {
+  assert.deepStrictEqual(K.installTargets('npm i -D left-pad@1.3.0 @types/node && pip install "requests>=2" -r req.txt').map((x) => x.name), ['left-pad', '@types/node', 'requests']);
+  assert.deepStrictEqual(K.installTargets('yarn add react'), [{ eco: 'npm', name: 'react' }]);
+  assert.deepStrictEqual(K.installTargets('python -m pip install Flask'), [{ eco: 'pypi', name: 'flask' }]);
+  assert.deepStrictEqual(K.installTargets('npm install'), []);
+  assert.deepStrictEqual(K.installTargets('npm i ./local-pkg git+https://x/y.git'), []);
+});
+const day = 86400000; const NOW = Date.parse('2026-10-24T00:00:00Z');
+const fake = (db) => async (url) => {
+  const name = decodeURIComponent(url.split('/').slice(-1)[0] === 'json' ? url.split('/').slice(-2)[0] : url.split('/').pop());
+  const rec = db[name];
+  if (!rec) return { status: 404, json: async () => ({}) };
+  return { status: 200, json: async () => (url.includes('pypi') ? { releases: { '1.0': [{ upload_time_iso_8601: rec }] } } : { time: { created: rec } }) };
+};
+const db = { 'left-pad': '2016-03-01T00:00:00Z', requests: '2011-02-14T00:00:00Z', 'expres-session-utils': new Date(NOW - 3 * day).toISOString() };
+const CK = (cmd, o = {}) => K.checkInstall(cmd, Object.assign({ fetcher: fake(db), now: NOW }, o));
+const asyncTests = [];
+const ta = (name, fn) => asyncTests.push([name, fn]);
+ta('established package passes', async () => assert.strictEqual((await CK('npm i left-pad')).decision, 'none'));
+ta('non-existent npm package is refused', async () => { const v = await CK('npm install reactt-query-pro'); assert.strictEqual(v.rule, 'package-missing'); assert.match(v.reason, /does not exist on npm/); });
+ta('non-existent PyPI package is refused', async () => assert.strictEqual((await CK('pip install requestz-ng')).rule, 'package-missing'));
+ta('package first published 3 days ago is refused', async () => { const v = await CK('npm i expres-session-utils'); assert.strictEqual(v.rule, 'package-new'); assert.match(v.reason, /3 day/); });
+ta('allowPackages exempts a name', async () => assert.strictEqual((await CK('npm i expres-session-utils', { allow: ['expres-session-utils'] })).decision, 'none'));
+ta('registry unreachable means no opinion', async () => assert.strictEqual((await CK('npm i whatever', { fetcher: async () => { throw new Error('offline'); } })).decision, 'none'));
+
 // ------------------------------------------------------- end to end -------
 group('hook end to end (real git repo, real processes)');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tandem-e2e-'));
@@ -245,6 +299,19 @@ t('Stop hands back after the same failure repeats (no infinite loop)', () => {
   assert.ok(!r.json || r.json.decision !== 'block');
   assert.match(r.json.systemMessage, /handing back/);
 });
+t('PostToolUse warns about an invented import without blocking', () => {
+  hook('UserPromptSubmit', { prompt: 'make add.js support three numbers' });
+  hook('PreToolUse', { tool_name: 'Edit', tool_input: { file_path: path.join(tmp, 'add.js'), old_string: 'module', new_string: 'x' } });
+  fs.writeFileSync(path.join(tmp, 'add.js'), "const fmt = require('number-formatter-x');\nmodule.exports = (a, b, c = 0) => a + b + c;\n");
+  const r = hook('PostToolUse', { tool_name: 'Edit', tool_input: { file_path: path.join(tmp, 'add.js') } });
+  assert.strictEqual(r.code, 0);
+  assert.match(r.json.hookSpecificOutput.additionalContext, /number-formatter-x/);
+});
+t('Stop refuses to finish while that import still does not resolve', () => {
+  const r = hook('Stop', {});
+  assert.strictEqual(r.json.decision, 'block');
+  assert.match(r.json.reason, /do not resolve[\s\S]*number-formatter-x/);
+});
 t('Stop allows and writes a receipt once tests pass', () => {
   hook('UserPromptSubmit', { prompt: 'make add.js support three numbers' });
   fs.writeFileSync(path.join(tmp, 'add.js'), 'module.exports = (a, b, c = 0) => a + b + c;\n');
@@ -282,5 +349,12 @@ t('state stays out of the working tree', () => {
 });
 
 fs.rmSync(tmp, { recursive: true, force: true });
-console.log(`\n${passed} passed, ${failed} failed`);
-process.exit(failed ? 1 : 0);
+fs.rmSync(proj, { recursive: true, force: true });
+(async () => {
+  group('async');
+  for (const [name, fn] of asyncTests) {
+    try { await fn(); passed++; console.log(`  ok   ${name}`); } catch (e) { failed++; console.log(`  FAIL ${name}\n       ${e.message}`); }
+  }
+  console.log(`\n${passed} passed, ${failed} failed`);
+  process.exit(failed ? 1 : 0);
+})();
